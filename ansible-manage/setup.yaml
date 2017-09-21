@@ -1,6 +1,20 @@
 ---
 - hosts: buildmachines
+  gather_facts: false
   tasks:
+
+  - name: debug
+    debug:
+      msg: "{{ openbsd_cvsroot }}"
+
+  - name: debug
+    debug:
+      msg: "{{ openbsd_cvsroot|urlsplit('hostname') }}"
+
+  - name: stop
+    fail:
+      msg: "stop"
+
   - name: install needed packages
     openbsd_pkg:
       name: "{{ item }}"
@@ -150,15 +164,76 @@
     with_items:
       - /usr/xobj
 
-  - name: check for already checked out sources
-    stat:
-      path: "/usr/{{ item }}/CVS"
-    with_items:
-      - src
-      - xenocara
-      - ports
-    register: cvs_check
+  - name: remove cvs mirror host key
+    command: ssh-keygen -R {{ openbsd_cvsroot }}
 
-  - name: dump
-    debug:
-      var: cvs_check
+  - name: add cvs mirror host key
+    shell: ssh-keyscan -H {{ openbsd_cvsroot }} >> /root/.ssh/known_hosts
+
+  - name: check if src already checked out
+    command: test -d /usr/src/CVS
+    register: cvscheck_src
+    ignore_errors: true
+
+  - name: do initial cvs src checkout
+    command: cvs -qd {{ openbsd_cvsroot }}:/cvs get -P src
+    args:
+      chdir: /usr
+    when: cvscheck_src|failed
+
+  - name: update /usr/src from cvs
+    command: cvs -q up -Pd
+    args:
+      chdir: /usr/src
+    when: cvscheck_src|success
+
+
+  - name: check if xenocara already checked out
+    command: test -d /usr/xenocara/CVS
+    register: cvscheck_xenocara
+    ignore_errors: true
+
+  - name: do initial cvs xenocara checkout
+    command: cvs -qd {{ openbsd_cvsroot }}:/cvs get -P xenocara
+    args:
+      chdir: /usr
+    when: cvscheck_xenocara|failed
+
+  - name: update /usr/xenocara from cvs
+    command: cvs -q up -Pd
+    args:
+      chdir: /usr/xenocara
+    when: cvscheck_xenocara|success
+
+  - name: fix permissions
+    file:
+      path: "{{ item.path }}"
+      owner: "{{ item.owner }}"
+      group: wsrc
+      mode: u=rw,g=rw,o=r
+      recurse: true
+    with_items:
+      - path: /usr/src
+        owner: build
+      - path: /usr/xenocara
+        owner: build
+      - path: /usr/ports
+        owner: _pfetch
+
+
+  - name: check if ports already checked out
+    command: test -d /usr/ports/CVS
+    register: cvscheck_ports
+    ignore_errors: true
+
+  - name: do initial cvs ports checkout
+    command: cvs -qd {{ openbsd_cvsroot }}:/cvs get -P ports
+    args:
+      chdir: /usr
+    when: cvscheck_ports|failed
+
+  - name: update /usr/ports from cvs
+    command: cvs -q up -Pd
+    args:
+      chdir: /usr/ports
+    when: cvscheck_ports|success
