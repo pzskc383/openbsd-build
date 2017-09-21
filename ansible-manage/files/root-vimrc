@@ -1,0 +1,8 @@
+set nocp
+filetype plugin indent on
+syntax on
+set ls=2
+set ts=4 sts=4 sw=4
+set et ai
+set nu
+colo desert

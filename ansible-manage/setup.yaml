@@ -1,0 +1,53 @@
+---
+- hosts: buildmachines
+  tasks:
+  - name: install needed packages
+    openbsd_pkg:
+      name: "{{ item }}"
+      state: present
+      build: no
+    with_items:
+      - vim--no_x11
+      - git
+      - mercurial
+  - name: install config files
+    file:
+      src: "{{ item.src }}"
+      dest: "{{ item.dst }}"
+      owner: "{{ item.owner|default(omit) }}"
+      group: "{{ item.group|default(omit) }}"
+      mode: "{{ item.mode|default(omit) }}"
+    with_items:
+      - src: files/mk.conf
+        dst: /etc/mk.conf
+      - src: files/root-kshrc
+        dst: /root/.kshrc
+      - src: files/root-vimrc
+        dst: /root/.vimrc
+      - src: files/root-tmux.conf
+        dst: /root/.tmux.conf
+  - name: enable kshrc for root
+    blockinfile:
+      insertafter: EOF
+      path: /root/.profile
+      content: "{{ lookup('file', 'files/root-profile.snip') }}"
+  - name: enable /dest mfs mount
+    block:
+      - mount:
+        state: present
+        src: swap
+        path: /dest
+        fstype: mfs
+        opts: rw,nosuid,noperm,-P/var/dest,-s1.5G,noauto
+      - file:
+          path: "{{ item }}"
+          state: directory
+          owner: build
+          mode: 0700
+        with_items:
+          - /var/dest
+          - /var/dest/base
+          - /var/dest/xbase
+      - mount:
+          state: mounted
+          path: /dest
