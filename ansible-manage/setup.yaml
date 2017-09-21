@@ -10,35 +10,54 @@
       - vim--no_x11
       - git
       - mercurial
-  - name: install config files
-    file:
-      src: "{{ item.src }}"
-      dest: "{{ item.dst }}"
-      owner: "{{ item.owner|default(omit) }}"
-      group: "{{ item.group|default(omit) }}"
-      mode: "{{ item.mode|default(omit) }}"
-    with_items:
-      - src: files/mk.conf
-        dst: /etc/mk.conf
-      - src: files/root-kshrc
-        dst: /root/.kshrc
-      - src: files/root-vimrc
-        dst: /root/.vimrc
-      - src: files/root-tmux.conf
-        dst: /root/.tmux.conf
-  - name: enable kshrc for root
-    blockinfile:
-      insertafter: EOF
-      path: /root/.profile
-      content: "{{ lookup('file', 'files/root-profile.snip') }}"
+
+  - name: install system config files
+    block:
+      - copy:
+          src: "{{ item.src }}"
+          dest: "{{ item.dst }}"
+          owner: "{{ item.owner|default(omit) }}"
+          group: "{{ item.group|default(omit) }}"
+          mode: "{{ item.mode|default(omit) }}"
+          force: yes
+        with_items:
+          - src: files/mk.conf
+            dst: /etc/mk.conf
+      - file:
+          dest: /etc/installurl
+          content: |
+            "{{ hostvars[openbsd_installurl] }}"
+          mode: 0640
+
+  - name: install root's config files:
+    block:
+      - blockinfile:
+          insertafter: EOF
+          path: /root/.profile
+          content: "{{ lookup('file', 'files/root-profile.snip') }}"
+      - copy:
+          src: "{{ item.src }}"
+          dest: "{{ item.dst }}"
+          owner: "root"
+          group: "wheel"
+          mode: 0600
+          force: yes
+        with_items:
+          - src: files/root-kshrc
+            dst: /root/.kshrc
+          - src: files/root-vimrc
+            dst: /root/.vimrc
+          - src: files/root-tmux.conf
+            dst: /root/.tmux.conf
+
   - name: enable /dest mfs mount
     block:
       - mount:
-        state: present
-        src: swap
-        path: /dest
-        fstype: mfs
-        opts: rw,nosuid,noperm,-P/var/dest,-s1.5G,noauto
+          state: present
+          src: swap
+          path: /dest
+          fstype: mfs
+          opts: rw,nosuid,noperm,-P/var/dest,-s1.5G,noauto
       - file:
           path: "{{ item }}"
           state: directory
