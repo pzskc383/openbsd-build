@@ -1,4 +1,8 @@
 buildmachines:
+  vars:
+      ansible_ssh_pipelining: true
+      ansible_become_method: doas
+      ansible_python_interpreter: /usr/local/bin/python2.7
   hosts:
     obsd-build-bjm.virt:
       openbsd_installurl: https://ftp.hostserver.de/pub/OpenBSD
@@ -6,7 +10,4 @@ buildmachines:
       ansible_user: root
       ansible_host: 192.168.122.241
       ansible_ssh_private_key_file: ~/.ssh/id_ed25519
-      ansible_python_interpreter: /usr/local/bin/python2.7
       ansible_ssh_common_args: -o ProxyCommand="ssh -W %h:%p -i ~/.ssh/id_ed25519 bjm"
-      ansible_ssh_pipelining: true
-
