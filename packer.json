@@ -35,19 +35,5 @@
         "exit<enter>"
       ]
     }
-  ],
-  "provisioners": [
-    {
-      "type":  "shell",
-      "inline": [ "pkg_add python-2.7.14" ]
-    },
-    {
-      "type":  "ansible",
-      "playbook_file": "./build-setup.yml",
-      "extra_arguments": [
-        "--connection", "packer",
-        "--extra-vars", "ansible_become_method=doas ansible_python_interpreter=/usr/local/bin/python2.7"
-      ]
-    }
   ]
 }

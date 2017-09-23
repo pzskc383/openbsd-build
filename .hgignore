@@ -2,3 +2,4 @@ syntax: glob
 *.retry
 packer_cache/
 packer_iso/*.iso
+output-qemu/packer-qemu
