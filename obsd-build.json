@@ -26,8 +26,9 @@
         "cd /<enter><wait>autoinstall<enter><wait10>",
         "http://10.0.2.2:8557/install.conf<enter>",
         "<wait4m>",
-        "root<enter><wait>penis<enter><wait>",
+        "root<enter><wait>root<enter><wait>",
         "sed -i '/PermitRoot/ s/no/yes/' /etc/ssh/sshd_config<enter>",
+        "pkg_add python-2.7.14",
         "rcctl restart sshd<enter><wait>",
         "exit<enter>"
       ]
@@ -35,8 +36,12 @@
   ],
   "provisioners": [
     {
-      "type": "shell-local",
-      "command": "notify-send -u critical packer 'build finished'"
+      "type":  "ansible",
+      "playbook_file": "./build-setup.yml",
+      "extra_arguments": [
+        "--connection", "packer",
+        "--extra-vars", "ansible_become_method=doas ansible_python_interpreter=/usr/local/bin/python2.7"
+      ]
     }
   ]
 }

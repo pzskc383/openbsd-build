@@ -1,7 +1,3 @@
 syntax: glob
-ansible-manage/*.retry
-chef-manage/.chef
-chef-manage/.chef/*.pem
-chef-manage/.chef/encrypted_data_bag_secret
-chef-manage/clients
-chef-manage/nodes
+*.retry
+packer_cache
