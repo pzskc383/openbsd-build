@@ -1,2 +1,4 @@
 these are scripts and files to build openbsd build machine
 managed with ansible, because I am lazy
+
+installation options are set in build-vm.sh

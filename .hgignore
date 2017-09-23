@@ -1,3 +1,4 @@
 syntax: glob
 *.retry
-packer_cache
+packer_cache/
+packer_iso/*.iso

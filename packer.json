@@ -1,0 +1,53 @@
+{
+  "variables": {
+    "openbsd_answers": "{{env `OPENBSD_ANSWERS`}}",
+    "openbsd_mirror": "{{env `OPENBSD_MIRROR`}}",
+    "openbsd_iso_name": "{{env `OPENBSD_ISO_NAME`}}",
+    "root_password": "{{env `ROOT_PASSWORD`}}"
+  },
+  "builders": [
+    {
+      "type": "qemu",
+      "iso_url": "{{user `openbsd_mirror`}}/pub/OpenBSD/snapshots/amd64/{{user `openbsd_iso_name`}}",
+      "iso_checksum_url": "{{user `openbsd_mirror`}}/pub/OpenBSD/snapshots/amd64/SHA256",
+      "iso_checksum_type": "sha256",
+      "iso_target_path": "./packer_iso/{{user `openbsd_iso_name`}}",
+      "accelerator": "kvm",
+      "disk_size": 102400,
+      "format": "qcow2",
+      "headless": true,
+      "ssh_username": "root",
+      "ssh_password": "{{user `root_password`}}",
+      "ssh_port": 22,
+      "ssh_wait_timeout": "3000s",
+      "http_directory": "packer_httproot",
+      "http_port_min": 8557,
+      "http_port_max": 8557,
+      "vnc_port_min": 5979,
+      "vnc_port_max": 5979,
+      "shutdown_command": "halt -p",
+      "boot_wait": "30s",
+      "boot_command": [
+        "a<enter><wait15s>",
+        "http://10.0.2.2:8557/install<enter><wait2s>",
+        "i<enter><wait2s>",
+        "<wait4m>",
+        "exit<enter>"
+      ]
+    }
+  ],
+  "provisioners": [
+    {
+      "type":  "shell",
+      "inline": [ "pkg_add python-2.7.14" ]
+    },
+    {
+      "type":  "ansible",
+      "playbook_file": "./build-setup.yml",
+      "extra_arguments": [
+        "--connection", "packer",
+        "--extra-vars", "ansible_become_method=doas ansible_python_interpreter=/usr/local/bin/python2.7"
+      ]
+    }
+  ]
+}
