@@ -33,11 +33,6 @@
           - src: files/cvsync.conf
             dst: /etc/cvsync.conf
       - file:
-          dest: /etc/installurl
-          content: |
-            "{{ hostvars[openbsd_installurl] }}"
-          mode: 0640
-      - file:
           state: directory
           dest: /var/cvs
           mode: 0775

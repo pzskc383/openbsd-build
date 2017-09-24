@@ -1,7 +1,7 @@
 #!/bin/sh
 
-OPENBSD_MIRROR=${OPENBSD_MIRROR:-https://mirror.yandex.ru}
-OPENBSD_ANONCVS=${OPENBSD_ANONCVS:-ftp.hostserver.de}
+OPENBSD_MIRROR=${OPENBSD_MIRROR:-http://ftp.piotrkosoft.net}
+OPENBSD_ANONCVS=${OPENBSD_ANONCVS:-anoncvs.eu.openbsd.org}
 INSTALL_SOURCE=${INSTALL_SOURCE:-minimal}
 
 if [ -z "$ROOT_PASSWORD" ] ; then
