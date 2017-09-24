@@ -49,7 +49,7 @@
       "playbook_file": "./build-setup.yml",
       "extra_arguments": [
         "--connection", "packer",
-        "--extra-vars", "ansible_become_method=doas ansible_python_interpreter=/usr/local/bin/python2.7 openbsd_cvsmirror={{user `openbsd_mirror`}"
+        "--extra-vars", "ansible_become_method=doas ansible_python_interpreter=/usr/local/bin/python2.7 openbsd_cvsmirror={{user `openbsd_mirror`}}"
       ]
     }
   ]
