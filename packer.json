@@ -2,6 +2,7 @@
   "variables": {
     "openbsd_answers": "{{env `OPENBSD_ANSWERS`}}",
     "openbsd_mirror": "{{env `OPENBSD_MIRROR`}}",
+    "openbsd_anoncvs": "{{env `OPENBSD_ANONCVS`}}",
     "openbsd_iso_name": "{{env `OPENBSD_ISO_NAME`}}",
     "root_password": "{{env `ROOT_PASSWORD`}}"
   },
@@ -46,10 +47,12 @@
     },
     {
       "type":  "ansible",
-      "playbook_file": "./build-setup.yml",
+      "playbook_file": "./setup.yml",
       "extra_arguments": [
         "--connection", "packer",
-        "--extra-vars", "ansible_become_method=doas ansible_python_interpreter=/usr/local/bin/python2.7 openbsd_cvsmirror={{user `openbsd_mirror`}}"
+        "--extra-vars", "ansible_become_method=doas ansible_python_interpreter=/usr/local/bin/python2.7",
+        "--extra-vars", "openbsd_mirror={{user `openbsd_mirror`}}",
+        "--extra-vars", "openbsd_anoncvs={{user `openbsd_anoncvs`}}"
       ]
     }
   ]

@@ -1,8 +1,11 @@
 ---
-- hosts: buildmachines
+- hosts: all
   gather_facts: false
-  tasks:
+  vars:
+    openbsd_mirror: ftp://ftp.icm.edu.pl
+    openbsd_anoncvs: anoncvs.eu.openbsd.org
 
+  tasks:
   - name: install needed packages
     openbsd_pkg:
       name: "{{ item }}"
@@ -12,7 +15,6 @@
       - vim--no_x11
       - git
       - mercurial
-      - cvsync
 
   - name: install system config files
     block:
@@ -30,12 +32,7 @@
             dst: /etc/man.conf
           - src: files/doas.conf
             dst: /etc/doas.conf
-          - src: files/cvsync.conf
-            dst: /etc/cvsync.conf
-      - file:
-          state: directory
-          dest: /var/cvs
-          mode: 0775
+      - file: state=directory dest=/var/downloads mode=0775
 
   - name: install root's config files
     block:
@@ -154,60 +151,100 @@
     with_items:
       - /usr/xobj
 
-  - name: sync cvsync
-    shell: cvsync -c /etc/cvsync.conf >/dev/null
+  - name: install 'cvs up' fixing script
+    copy:
+      src: files/cvsupfix.sh
+      dest: /usr/local/bin/cvsupfix.sh
+      owner: root
+      group: bin
+      mode: 0775
+      force: yes
+
+  - name: record CVS server ssh hostkey
+    block:
+      - shell: ssh-keygen -R anoncvs.eu.openbsd.org 2>/dev/null
+      - shell: ssh-keyscan {{openbsd_anoncvs}} 2>/dev/null >>/root/.ssh/known_hosts
 
   - name: check if src already checked out
     command: test -d /usr/src/CVS
     register: cvscheck_src
     ignore_errors: true
 
-  - name: do initial cvs src checkout
-    command: cvs -qd /var/cvs/src get -P src
-    args:
-      chdir: /usr
-    when: cvscheck_src|failed
-
-  - name: update /usr/src from cvs
-    command: cvs -q up -Pd
-    args:
-      chdir: /usr/src
-    when: cvscheck_src|success
-
-
   - name: check if xenocara already checked out
     command: test -d /usr/xenocara/CVS
     register: cvscheck_xenocara
     ignore_errors: true
-
-  - name: do initial cvs xenocara checkout
-    command: cvs -qd /var/cvs/xenocara get -P xenocara
-    args:
-      chdir: /usr
-    when: cvscheck_xenocara|failed
-
-  - name: update /usr/xenocara from cvs
-    command: cvs -q up -Pd
-    args:
-      chdir: /usr/xenocara
-    when: cvscheck_xenocara|success
 
   - name: check if ports already checked out
     command: test -d /usr/ports/CVS
     register: cvscheck_ports
     ignore_errors: true
 
-  - name: do initial cvs ports checkout
-    command: cvs -qd /var/cvs/ports get -P ports
+  - name: checkout src from cvs
+    block:
+      - command: tar tzf /var/downloads/src.tar.gz
+        register: tarcheck_src
+      - command: tar tzf /var/downloads/sys.tar.gz
+        register: tarcheck_sys
+      - file: path=/var/downloads/src.tar.gz state=absent
+        when: tarcheck_src|failed
+      - file: path=/var/downloads/sys.tar.gz state=absent
+        when: tarcheck_sys|failed
+      - get_url:
+          dest: /var/downloads/src.tar.gz
+          url: "{{openbsd_mirror}}/pub/OpenBSD/6.1/src.tar.gz"
+        when: tarcheck_src|failed
+      - get_url:
+          dest: /var/downloads/sys.tar.gz
+          url: "{{openbsd_mirror}}/pub/OpenBSD/6.1/sys.tar.gz"
+        when: tarcheck_sys|failed
+      - shell: rm -rf /usr/src/*
+      - command: tar xzf /var/downloads/src.tar.gz -C /usr/src
+      - command: tar xzf /var/downloads/sys.tar.gz -C /usr/src
+    when: cvscheck_src|failed
+
+  - name: update /usr/src from cvs
+    command: cvsupfix.sh anoncvs@{{openbsd_anoncvs}}:/cvs
     args:
-      chdir: /usr
+      chdir: /usr/src
+
+  - name: do initial cvs xenocara checkout
+    block:
+      - command: tar tzf /var/downloads/xenocara.tar.gz
+        register: tarcheck_xenocara
+      - file: path=/var/downloads/xenocara.tar.gz state=absent
+        when: tarcheck_xenocara|failed
+      - get_url:
+          dest: /var/downloads/xenocara.tar.gz
+          url: "{{openbsd_mirror}}/pub/OpenBSD/6.1/xenocara.tar.gz"
+        when: tarcheck_xenocara|failed
+      - shell: rm -rf /usr/xenocara/*
+      - command: tar xzf /var/downloads/xenocara.tar.gz -C /usr
+    when: cvscheck_xenocara|failed
+
+  - name: update /usr/xenocara from cvs
+    command: cvsupfix.sh anoncvs@{{openbsd_anoncvs}}:/cvs
+    args:
+      chdir: /usr/xenocara
+
+  - name: do initial cvs ports checkout
+    block:
+      - command: tar tzf /var/downloads/ports.tar.gz
+        register: tarcheck_ports
+      - file: path=/var/downloads/ports.tar.gz state=absent
+        when: tarcheck_ports|failed
+      - get_url:
+          dest: /var/downloads/ports.tar.gz
+          url: "{{openbsd_mirror}}/pub/OpenBSD/snapshots/ports.tar.gz"
+        when: tarcheck_ports|failed
+      - shell: rm -rf /usr/ports/* /usr/ports/.*
+      - command: tar xzf /var/downloads/ports.tar.gz -C /usr
     when: cvscheck_ports|failed
 
   - name: update /usr/ports from cvs
-    command: cvs -q up -Pd
+    command: cvsupfix.sh anoncvs@{{openbsd_anoncvs}}:/cvs
     args:
       chdir: /usr/ports
-    when: cvscheck_ports|success
 
   - name: fix permissions
     file:
