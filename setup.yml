@@ -6,6 +6,11 @@
     openbsd_anoncvs: anoncvs.eu.openbsd.org
 
   tasks:
+  - name: provision ssh pubkey
+    authorized_key:
+      user: root
+      key: "{{ lookup('file', playbook_dir+'keys/obsd-build-access.pub') }}"
+
   - name: install needed packages
     openbsd_pkg:
       name: "{{ item }}"
@@ -151,107 +156,22 @@
     with_items:
       - /usr/xobj
 
-  - name: install 'cvs up' fixing script
-    copy:
-      src: files/cvsupfix.sh
-      dest: /usr/local/bin/cvsupfix.sh
-      owner: root
-      group: bin
-      mode: 0775
-      force: yes
-
   - name: record CVS server ssh hostkey
     block:
       - file: state=touch path=/root/.ssh/known_hosts
-      - shell: ssh-keygen -R anoncvs.eu.openbsd.org 2>/dev/null
+      - shell: ssh-keygen -R {{openbsd_anoncvs}} 2>/dev/null
       - shell: ssh-keyscan {{openbsd_anoncvs}} 2>/dev/null >>/root/.ssh/known_hosts
 
-  - name: check if src already checked out
-    command: test -d /usr/src/CVS
-    register: cvscheck_src
-    ignore_errors: true
-
-  - name: check if xenocara already checked out
-    command: test -d /usr/xenocara/CVS
-    register: cvscheck_xenocara
-    ignore_errors: true
-
-  - name: check if ports already checked out
-    command: test -d /usr/ports/CVS
-    register: cvscheck_ports
-    ignore_errors: true
-
-  - name: checkout src from cvs
-    block:
-      - command: tar tzf /var/downloads/src.tar.gz
-        register: tarcheck_src
-        ignore_errors: true
-      - command: tar tzf /var/downloads/sys.tar.gz
-        register: tarcheck_sys
-        ignore_errors: true
-      - file: path=/var/downloads/src.tar.gz state=absent
-        when: tarcheck_src|failed
-      - file: path=/var/downloads/sys.tar.gz state=absent
-        when: tarcheck_sys|failed
-      - get_url:
-          dest: /var/downloads/src.tar.gz
-          url: "{{openbsd_mirror}}/pub/OpenBSD/6.1/src.tar.gz"
-        when: tarcheck_src|failed
-      - get_url:
-          dest: /var/downloads/sys.tar.gz
-          url: "{{openbsd_mirror}}/pub/OpenBSD/6.1/sys.tar.gz"
-        when: tarcheck_sys|failed
-      - shell: rm -rf /usr/src/*
-      - command: tar xzf /var/downloads/src.tar.gz -C /usr/src
-      - command: tar xzf /var/downloads/sys.tar.gz -C /usr/src
-    when: cvscheck_src|failed
-
-  - name: update /usr/src from cvs
-    command: cvsupfix.sh anoncvs@{{openbsd_anoncvs}}:/cvs
+  - name: checkout {{item}} from cvs
+    command: cvs -qd anoncvs@{{openbsd_anoncvs}}:/cvs checkout -P {{item}}
     args:
-      chdir: /usr/src
+      chdir: /usr
+    with_items:
+      - src
+      - xenocara
+      - ports
 
-  - name: do initial cvs xenocara checkout
-    block:
-      - command: tar tzf /var/downloads/xenocara.tar.gz
-        register: tarcheck_xenocara
-        ignore_errors: true
-      - file: path=/var/downloads/xenocara.tar.gz state=absent
-        when: tarcheck_xenocara|failed
-      - get_url:
-          dest: /var/downloads/xenocara.tar.gz
-          url: "{{openbsd_mirror}}/pub/OpenBSD/6.1/xenocara.tar.gz"
-        when: tarcheck_xenocara|failed
-      - shell: rm -rf /usr/xenocara/*
-      - command: tar xzf /var/downloads/xenocara.tar.gz -C /usr
-    when: cvscheck_xenocara|failed
-
-  - name: update /usr/xenocara from cvs
-    command: cvsupfix.sh anoncvs@{{openbsd_anoncvs}}:/cvs
-    args:
-      chdir: /usr/xenocara
-
-  - name: do initial cvs ports checkout
-    block:
-      - command: tar tzf /var/downloads/ports.tar.gz
-        register: tarcheck_ports
-        ignore_errors: true
-      - file: path=/var/downloads/ports.tar.gz state=absent
-        when: tarcheck_ports|failed
-      - get_url:
-          dest: /var/downloads/ports.tar.gz
-          url: "{{openbsd_mirror}}/pub/OpenBSD/snapshots/ports.tar.gz"
-        when: tarcheck_ports|failed
-      - shell: rm -rf /usr/ports/* /usr/ports/.*
-      - command: tar xzf /var/downloads/ports.tar.gz -C /usr
-    when: cvscheck_ports|failed
-
-  - name: update /usr/ports from cvs
-    command: cvsupfix.sh anoncvs@{{openbsd_anoncvs}}:/cvs
-    args:
-      chdir: /usr/ports
-
-  - name: fix permissions
+  - name: fix source permissions
     file:
       path: "{{ item.path }}"
       owner: "{{ item.owner }}"
@@ -265,12 +185,6 @@
         owner: build
       - path: /usr/ports
         owner: _pfetch
-
-  - name: set up serial console
-    lineinfile:
-      path: /etc/ttys
-      regexp: "^console"
-      line: 'console "/usr/libexec/getty std.115200" vt220 on secure local'
 
   - name: enable serial console on boot
     copy:
@@ -288,3 +202,11 @@
       owner: root
       group: bin
       src: ttycom0fix.sh
+
+  - name: set up serial console
+    lineinfile:
+      path: /etc/ttys
+      regexp: "^console"
+      line: 'console "/usr/libexec/getty std.115200" vt220 on secure local'
+
+

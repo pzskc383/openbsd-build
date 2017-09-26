@@ -5,7 +5,8 @@ buildmachines:
       ansible_python_interpreter: /usr/local/bin/python2.7
   hosts:
     obsd-build.virt:
-      openbsd_cvsmirror: anoncvs.eu.openbsd.org
+      openbsd_mirror: ftp://ftp.icm.edu.pl
+      openbsd_anoncvs: anoncvs.eu.openbsd.org
       ansible_user: root
       ansible_host: 192.168.122.241
       #ansible_ssh_pass: root

@@ -1,0 +1,39 @@
+---
+- hosts: all
+  gather_facts: false
+  tasks:
+
+  - name: update /usr/{{item}} from cvs
+    command: cvs -qd anoncvs@{{openbsd_anoncvs}}:/cvs up -Pd 
+    args:
+      chdir: /usr/{{item}}
+    with_items:
+      - src
+      - xenocara
+      - ports
+
+  - name: checkout git ports repos
+    block:
+      - git:
+          dest: /usr/local/ports/gh-wip
+          repo: https://github.com/jasperla/openbsd-wip
+      - git:
+          dest: /usr/local/ports/my
+          repo: https://pzskc383.dp.ua/code/openbsd-ports
+    become: true
+    become_user: _pfetch
+
+  - name: fix permissions
+    file:
+      path: "{{ item.path }}"
+      owner: "{{ item.owner }}"
+      group: wsrc
+      mode: u=rw,g=rw,o=r
+      recurse: true
+    with_items:
+      - path: /usr/src
+        owner: build
+      - path: /usr/xenocara
+        owner: build
+      - path: /usr/ports
+        owner: _pfetch
