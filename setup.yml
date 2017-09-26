@@ -162,6 +162,7 @@
 
   - name: record CVS server ssh hostkey
     block:
+      - file: state=touch path=/root/.ssh/known_hosts
       - shell: ssh-keygen -R anoncvs.eu.openbsd.org 2>/dev/null
       - shell: ssh-keyscan {{openbsd_anoncvs}} 2>/dev/null >>/root/.ssh/known_hosts
 
@@ -184,8 +185,10 @@
     block:
       - command: tar tzf /var/downloads/src.tar.gz
         register: tarcheck_src
+        ignore_errors: true
       - command: tar tzf /var/downloads/sys.tar.gz
         register: tarcheck_sys
+        ignore_errors: true
       - file: path=/var/downloads/src.tar.gz state=absent
         when: tarcheck_src|failed
       - file: path=/var/downloads/sys.tar.gz state=absent
@@ -212,6 +215,7 @@
     block:
       - command: tar tzf /var/downloads/xenocara.tar.gz
         register: tarcheck_xenocara
+        ignore_errors: true
       - file: path=/var/downloads/xenocara.tar.gz state=absent
         when: tarcheck_xenocara|failed
       - get_url:
@@ -231,6 +235,7 @@
     block:
       - command: tar tzf /var/downloads/ports.tar.gz
         register: tarcheck_ports
+        ignore_errors: true
       - file: path=/var/downloads/ports.tar.gz state=absent
         when: tarcheck_ports|failed
       - get_url:
@@ -260,3 +265,26 @@
         owner: build
       - path: /usr/ports
         owner: _pfetch
+
+  - name: set up serial console
+    lineinfile:
+      path: /etc/ttys
+      regexp: "^console"
+      line: 'console "/usr/libexec/getty std.115200" vt220 on secure local'
+
+  - name: enable serial console on boot
+    copy:
+      dest: /etc/boot.conf
+      src: boot.conf
+      owner: root
+      group: wheel
+      mode: u=rw,go=r
+
+  - name: install serial term size fix script
+    copy:
+      dest: /usr/local/bin/ttycom0fix.sh
+      src: ttycom0fix.sh
+      mode: u=rwx,go=rx
+      owner: root
+      group: bin
+      src: ttycom0fix.sh

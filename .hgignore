@@ -4,3 +4,4 @@ packer_cache/
 packer_iso/*.iso
 output-qemu/packer-qemu
 packer_httproot/install
+.venv

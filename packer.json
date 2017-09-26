@@ -49,7 +49,6 @@
       "type":  "ansible",
       "playbook_file": "./setup.yml",
       "extra_arguments": [
-        "--connection", "packer",
         "--extra-vars", "ansible_become_method=doas ansible_python_interpreter=/usr/local/bin/python2.7",
         "--extra-vars", "openbsd_mirror={{user `openbsd_mirror`}}",
         "--extra-vars", "openbsd_anoncvs={{user `openbsd_anoncvs`}}"
