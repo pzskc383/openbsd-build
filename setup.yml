@@ -1,15 +1,30 @@
 ---
-- hosts: all
+- hosts: obsd-build
   gather_facts: false
   vars:
     openbsd_mirror: ftp://ftp.icm.edu.pl
     openbsd_anoncvs: anoncvs.eu.openbsd.org
 
   tasks:
+  - name: save old ssh settings
+    set_fact:
+      old_ssh_key: "{{ansible_ssh_private_key_file}}"
+      ansible_ssh_pass: root
+      ansible_ssh_private_key_file: ""
+
+  - name: install python
+    raw: pkg_add python27
+
   - name: provision ssh pubkey
     authorized_key:
       user: root
-      key: "{{ lookup('file', playbook_dir+'keys/obsd-build-access.pub') }}"
+      key: "{{ lookup('file', playbook_dir+'/keys/obsd-build-access.pub') }}"
+
+  - name: restore ssh settings
+    set_fact:
+      ansible_ssh_private_key_file: "{{old_ssh_key}}"
+      old_ssh_key: ""
+      ansible_ssh_pass: root
 
   - name: install needed packages
     openbsd_pkg:
@@ -201,7 +216,6 @@
       mode: u=rwx,go=rx
       owner: root
       group: bin
-      src: ttycom0fix.sh
 
   - name: set up serial console
     lineinfile:

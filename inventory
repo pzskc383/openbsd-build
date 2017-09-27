@@ -1,0 +1,84 @@
+#!/bin/sh
+
+leasefile=/var/lib/libvirt/dnsmasq/default.leases
+if ! [ -r "$leasefile" ] ; then
+  echo "can't read leasfile at $leasefile"
+  exit 1
+fi
+
+if [ "$1" = --list ]; then
+  mode=list
+elif [ "$1" = --host ]; then
+  mode=host; target="$2"
+else
+  cat <<EOHELP
+simple inventory that looks for domains named "o(pen)?bsd.*" 
+in libvirt and sets some defaults
+EOHELP
+    exit 0
+fi
+
+
+default_variables="ansible_become_method doas
+ansible_python_interpreter /usr/local/bin/python2.7
+ansible_user root
+ansible_ssh_private_key_file $PWD/keys/obsd-build-access
+openbsd_mirror ftp://ftp.icm.edu.pl
+openbsd_anoncvs anoncvs.eu.openbsd.org"
+
+print_hostvars() {
+  set -- "ansible_host" "$1" $default_variables
+  while : ; do
+    printf '"%s": "%s"' "$1" "$2"
+    shift; shift
+    [ $# -eq 0 ] && break
+    echo ,
+  done
+}
+
+print_meta() {
+  echo '"_meta": { "hostvars": {'
+  while : ; do
+    printf '"%s": { ' "$1" 
+    print_hostvars "$2" $default_variables
+    shift; shift
+
+    [ $# -eq 0 ] && break
+    printf "},\n"
+  done
+  echo '} } },'
+}
+
+print_hosts() {
+  printf '"ungrouped": [ '
+  while : ; do
+    printf '"%s" ' $1
+    shift
+    [ $# -eq 0 ] && break
+    printf ,
+  done
+  echo ]
+}
+
+set --
+while read _ _ host domain _; do
+  ( [ "$mode" = host ] && ! [ "$target" = "$domain" ] ) && continue
+  if [ "${domain#openbsd}" != "$domain" ] || [ "${domain#obsd}" != "$domain" ]; then
+    hostmap="${hostmap:+$hostmap }$domain $host"
+    hostlist="${hostlist:+$hostlist }$domain"
+  fi
+done < /var/lib/libvirt/dnsmasq/default.leases
+
+if [ "$mode" = host ] ; then
+  set -- $hostlist
+  if [ $# -eq 0 ]; then
+    echo '{}'; 
+  else
+    printf '{' ; print_hostvars $hostlist;  echo '}'
+  fi
+else
+  echo '{'
+  print_meta $hostmap
+  print_hosts $hostlist
+  echo '}'
+fi
