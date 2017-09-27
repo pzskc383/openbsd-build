@@ -1,76 +1,120 @@
 #!/bin/sh
 
-MIRROR=${MIRROR:-https://ftp2.eu.openbsd.org}
-ANONCVS=${ANONCVS:-anoncvs.eu.openbsd.org}
-SOURCE=${SOURCE:-minimal}
+#lynx -listonly -dump https://www.openbsd.org/ftp.html |grep pub/OpenBSD|awk '{print $2}' > mirrors
+#netselect -s10 -t30 $(sed 's@^.*//\([^/]*\)/.*$@\1@' mirrors| sort -u) |awk '{print $2}' > topten
+#while read -r host; do echo "$(grep $host mirrors)"; echo ; done < topten
+#rm mirrors topten 2>/dev/null
+
+err() {
+  [ -n "$1" ] && echo "$1" >&2
+  exit 1
+}
+
+gen_root_password() {
+  dd if=/dev/random bs=1 |tr -dc ',-:@-Z^-{'|head -c 14
+}
+
+select_file_mirror() {
+  echo https://ftp2.eu.openbsd.org
+}
+
+select_cvs_mirror() {
+  echo anoncvs.eu.openbsd.org
+}
+
+setup_serv() {
+  [ -d ./serve ] || mkdir ./serve
+
+  for fn in pxeboot bsd.rd SHA256 ; do
+    [ -e "./serve/$fn" ] && continue
+    wget "$1/$fn" -O "./serve/$fn" || err "dowloading $fn from $1/$fn failed!"
+  done
+
+  [ -L "./serve/auto_install" ] || ln -s pxeboot ./serve/auto_install
+
+  ( { cd ./serve && sha256sum -c --ignore-missing SHA256; } || \
+    err "checksum failed" )
+
+  ( rm -rf ./serve/etc >/dev/null && mkdir ./serve/etc ) || \
+    err "can't clean /etc serv dir"
+
+  dd if=/dev/urandom bs=256 count=1 of=./serve/etc/random.seed >/dev/null 2>&1
+  echo boot tftp:bsd.rd > ./serve/etc/boot.conf
+
+  eval "echo \"$(cat "./templates/install-${VERSION}.tpl.sh")\"" \
+    > ./serve/auto_install.conf
+}
+
+create_new_image() {
+  [ -e "$1" ] && rm -f "$1">/dev/null
+  qemu-img create -f qcow2 "$1" 10240M
+}
+
+run_http_serv() {
+  fifo=$(pwd)/http
+  [ -p "${fifo}.in" ] || mkfifo "${fifo}.in"
+  [ -p "${fifo}.out" ] || mkfifo "${fifo}.out"
+
+  (
+    cd ./serve || err "can't cd"
+
+    LF=$(printf "%b_" '\r'); LF=${LF%_}
+
+    while : ; do
+      read request
+      file="${request#GET*/}"
+      file="${file% HTTP/*}"
+
+      while : ; do
+        read header
+        [ "$header" = "$LF" ] && break;
+      done
+
+      if [ -r "$file" ] ; then
+        printf "%s\r\n%s\r\n\r\n" "HTTP/1.0 200 OK" "Content-type: text/plain"
+        cat "$file"
+        printf "\r\n"
+      else
+        printf "%s\r\n\r\n" "HTTP/1.0 404 NOT FOUND"
+      fi
+
+    done
+  ) <"${fifo}.out" >"${fifo}.in" &
+  serv_pid=$!
+  trap 'kill $serv_pid' EXIT
+}
+
+
+MIRROR=${MIRROR:-$(select_file_mirror)}
+ANONCVS=${ANONCVS:-$(select_cvs_mirror)}
 FLAVOUR=${FLAVOUR:-release}
 
 if [ "$FLAVOUR" = current ] ; then
   VERSION=6.2
-  ISO_PATH=snapshots
-else
+  MIRROR_PATH="pub/OpenBSD/snapshots/amd64"
+elif [ "$FLAVOUR" = release ]; then
   VERSION=6.1
-  ISO_PATH=$VERSION
-fi
-VERSION_DOTLESS="${VERSION%.*}${VERSION#*.}"
-ANSWERS="./packer_httproot/install-${VERSION}.tpl.sh"
-
-[ -d ./iso ] || mkdir -p iso
-[ -d ./output ] && rm -rf ./output 2>/dev/null
-
-if ! [ -e "$ANSWERS" ]; then
-  echo "hm! install template not found"
-  echo "path: $ANSWERS"
-  exit 1
-fi
-
-if [ "$SOURCE" = full ] ; then
-  ISO_NAME=install${VERSION_DOTLESS}.iso
-  SET_LOCATION=cd
-  VERIFY_SETS=yes
+  MIRROR_PATH="pub/OpenBSD/${VERSION}/amd64"
 else
-  ISO_NAME=cd${VERSION_DOTLESS}.iso
-  SET_LOCATION=http
-  VERIFY_SETS=no
+  err "wrong \$FLAVOUR: ${FLAVOUR}! supply either current or release"
 fi
+export MIRROR MIRROR_PATH ANONCVS FLAVOUR VERSION
 
-echo preparing to build new OpenBSD vm.
-echo install from: "$ISO_NAME"
-echo flavour: "$FLAVOUR" '(' "$VERSION" ')'
-echo mirror: "$MIRROR"
-echo csv host: "$ANONCVS"
-
-if [ -z "$ROOT_PASSWORD" ] ; then
-  ROOT_PASSWORD=$(dd if=/dev/random bs=1 |tr -dc ',-:@-Z^-{'|head -c 14)
-  printf "root password: %s\n\n" "$ROOT_PASSWORD"
-fi
-
-echo sleeping for 5 seconds before actual build
-echo press ^C if you don\'t like it
-#sleep 2
-
-eval "echo \"$(cat ./packer_httproot/install-${VERSION}.tpl.sh )\"" \
-  >./packer_httproot/install 2>/dev/null
-
-export MIRROR ISO_NAME ISO_PATH ANONCVS ANSWERS ROOT_PASSWORD
+setup_serv "$MIRROR/$MIRROR_PATH"
+create_new_image obsd-build.img
+run_http_serv
 
 
-
-PACKER_KEY_INTERVAL=10ms # bit faster
-CHECKPOINT_DISABLE=1 # don't phone home
-[ -t 1 ] || { PACKER_NO_COLOR=1; export PACKER_NO_COLOR; }
-export PACKER_KEY_INTERVAL CHECKPOINT_DISABLE
-export PACKER_LOG=1
-
-exec packer build packer.json
-
-# qemu-system-x86_64 \
-#  -machine type=pc,accel=kvm \
-#  -m 512M \
-#  -name obsd-build \
-#  -boot once=n \
-#  -drive file=output/obsd-build.img,if=virtio,cache=writeback,discard=ignore,format=qcow2 \
-#  -netdev user,id=user.0,hostfwd=tcp::2901-:22 \
-#  -device virtio-net,netdev=user.0 \
-#  -vnc 127.0.0.1:79 \
-#  -display sdl
+  #-object filter-dump,id=usernetdump,netdev=usernet,file=./usernet.pcap \
+  #-chardev pipe,id=httpfifo,path=./http \
+#strace -o qemu.strace -f \
+sleep 1
+qemu-system-x86_64 \
+  -machine type=pc,accel=kvm \
+  -m 512M \
+  -boot once=n \
+  -drive file=obsd-build.img,if=virtio,cache=writeback,discard=ignore,format=qcow2 \
+  -netdev user,id=usernet,tftp=./serve/,bootfile=auto_install,guestfwd=tcp:10.0.2.2:80-pipe:./http \
+  -device virtio-net-pci,netdev=usernet \
+  -display sdl \
+  -name obsd-build

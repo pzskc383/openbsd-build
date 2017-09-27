@@ -1,6 +1,5 @@
 syntax: glob
 *.retry
-iso/*.iso
-output/obsd-build.*
-packer_httproot/install
+obsd-build.img
+serve/*
 .venv
