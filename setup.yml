@@ -1,16 +1,15 @@
 ---
 - hosts: obsd-build
   gather_facts: false
-  vars:
-    openbsd_mirror: ftp://ftp.icm.edu.pl
-    openbsd_anoncvs: anoncvs.eu.openbsd.org
-
   tasks:
   - name: save old ssh settings
     set_fact:
       old_ssh_key: "{{ansible_ssh_private_key_file}}"
       ansible_ssh_pass: root
       ansible_ssh_private_key_file: ""
+
+  - name: set installurl
+    raw: echo {{openbsd_mirror}}/pub/OpenBSD > /etc/installurl
 
   - name: install python
     raw: pkg_add python27

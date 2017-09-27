@@ -23,7 +23,7 @@ default_variables="ansible_become_method doas
 ansible_python_interpreter /usr/local/bin/python2.7
 ansible_user root
 ansible_ssh_private_key_file $PWD/keys/obsd-build-access
-openbsd_mirror ftp://ftp.icm.edu.pl
+openbsd_mirror ftp://ftp2.eu.openbsd.org
 openbsd_anoncvs anoncvs.eu.openbsd.org"
 
 print_hostvars() {

@@ -1,6 +1,6 @@
 #!/bin/sh
 
-OPENBSD_MIRROR=${OPENBSD_MIRROR:-https://mirror.leaseweb.com}
+OPENBSD_MIRROR=${OPENBSD_MIRROR:-https://ftp2.eu.openbsd.org}
 OPENBSD_ANONCVS=${OPENBSD_ANONCVS:-anoncvs.eu.openbsd.org}
 INSTALL_SOURCE=${INSTALL_SOURCE:-minimal}
 

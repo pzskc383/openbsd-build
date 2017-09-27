@@ -1,7 +1,6 @@
 syntax: glob
 *.retry
-packer_cache/
-packer_iso/*.iso
-output-qemu/packer-qemu
+iso/*.iso
+output/obsd-build.*
 packer_httproot/install
 .venv
