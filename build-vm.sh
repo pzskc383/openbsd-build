@@ -1,34 +1,62 @@
 #!/bin/sh
 
-OPENBSD_MIRROR=${OPENBSD_MIRROR:-https://ftp2.eu.openbsd.org}
-OPENBSD_ANONCVS=${OPENBSD_ANONCVS:-anoncvs.eu.openbsd.org}
-INSTALL_SOURCE=${INSTALL_SOURCE:-minimal}
+MIRROR=${MIRROR:-https://ftp2.eu.openbsd.org}
+ANONCVS=${ANONCVS:-anoncvs.eu.openbsd.org}
+SOURCE=${SOURCE:-minimal}
+FLAVOUR=${FLAVOUR:-release}
 
 if [ -z "$ROOT_PASSWORD" ] ; then
   ROOT_PASSWORD=$(dd if=/dev/random bs=1 |tr -dc ',-:@-Z^-{'|head -c 14)
   printf "root password: %s\n\n" "$ROOT_PASSWORD"
 fi
 
-if [ "$INSTALL_SOURCE" = full ] ; then
-  OPENBSD_ISO_NAME=install62.iso
+if [ "$FLAVOUR" = current ] ; then
+  VERSION=6.2
+  ISO_PATH=snapshots
+else
+  VERSION=6.1
+  ISO_PATH=$VERSION
+fi
+VERSION_DOTLESS="${VERSION%.*}${VERSION#*.}"
+ANSWERS="./packer_httproot/install-${VERSION}.tpl.sh"
+
+[ -d ./output ] && rm -rf ./output 2>/dev/null
+if ! [ -e "$ANSWERS" ]; then
+  echo "hm! install template not found"
+  echo "path: $ANSWERS"
+  exit 1
+fi
+
+if [ "$SOURCE" = full ] ; then
+  ISO_NAME=install${VERSION_DOTLESS}.iso
   SET_LOCATION=cd
   VERIFY_SETS=yes
 else
-  OPENBSD_ISO_NAME=cd62.iso
+  ISO_NAME=cd${VERSION_DOTLESS}.iso
   SET_LOCATION=http
   VERIFY_SETS=no
 fi
 
-[ -d ./output-qemu ] && rm -rf ./output-qemu 2>/dev/null
+echo preparing to build new OpenBSD vm.
+echo install from: "$ISO_NAME"
+echo flavour: "$FLAVOUR" '(' "$VERSION" ')'
+echo mirror: "$MIRROR"
+echo csv host: "$ANONCVS"
+echo root password: "$ROOT_PASSWORD"
 
-eval "echo \"$(cat ./packer_httproot/install.tpl.sh )\"" \
+echo sleeping for 5 seconds before actual build
+echo press ^C if you don\'t like it
+sleep 2
+
+eval "echo \"$(cat ./packer_httproot/install-${VERSION}.tpl.sh )\"" \
   >./packer_httproot/install 2>/dev/null
+
+export MIRROR ISO_NAME ANONCVS ISO_PATH ROOT_PASSWORD 
 
 
 PACKER_KEY_INTERVAL=10ms # bit faster
 CHECKPOINT_DISABLE=1 # don't phone home
 [ -t 1 ] || { PACKER_NO_COLOR=1; export PACKER_NO_COLOR; }
-
-export OPENBSD_MIRROR OPENBSD_ISO_NAME OPENBSD_ANONCVS ROOT_PASSWORD 
 export PACKER_KEY_INTERVAL CHECKPOINT_DISABLE
+
 exec packer build packer.json
