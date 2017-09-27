@@ -114,7 +114,7 @@ qemu-system-x86_64 \
   -m 512M \
   -boot once=n \
   -drive file=obsd-build.img,if=virtio,cache=writeback,discard=ignore,format=qcow2 \
-  -netdev user,id=usernet,tftp=./serve/,bootfile=auto_install,guestfwd=tcp:10.0.2.2:80-pipe:./http \
+  -netdev user,id=usernet,tftp=./serve/,bootfile=auto_install,guestfwd=tcp::80-pipe:./http \
   -device virtio-net-pci,netdev=usernet \
   -display sdl \
   -name obsd-build
