@@ -3,6 +3,7 @@
     "answers": "{{env `ANSWERS`}}",
     "mirror": "{{env `MIRROR`}}",
     "anoncvs": "{{env `ANONCVS`}}",
+    "version": "{{env `VERSION`}}",
     "iso_name": "{{env `ISO_NAME`}}",
     "iso_path": "{{env `ISO_PATH`}}",
     "root_password": "{{env `ROOT_PASSWORD`}}"
@@ -20,7 +21,7 @@
       "disk_size": 102400,
       "disk_compression": true,
       "format": "qcow2",
-      "headless": true,
+      "headless": false,
       "ssh_username": "root",
       "ssh_password": "{{user `root_password`}}",
       "ssh_port": 22,
@@ -34,7 +35,7 @@
       "boot_wait": "30s",
       "boot_command": [
         "a<enter><wait15s>",
-        "http://10.0.2.2:8557/install-{{user `answers`}}<enter><wait2s>",
+        "http://10.0.2.2:8557/install-{{user `version`}}<enter><wait2s>",
         "i<enter><wait2s>",
         "<wait4m>",
         "exit<enter>"
