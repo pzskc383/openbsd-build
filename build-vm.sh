@@ -42,7 +42,7 @@ setup_serv() {
   echo boot tftp:bsd.rd > ./serve/etc/boot.conf
 
   eval "echo \"$(cat "./templates/install-${VERSION}.tpl.sh")\"" \
-    > ./serve/auto_install.conf
+    > ./serve/install.conf
 }
 
 create_new_image() {
@@ -55,34 +55,45 @@ run_http_serv() {
   [ -p "${fifo}.in" ] || mkfifo "${fifo}.in"
   [ -p "${fifo}.out" ] || mkfifo "${fifo}.out"
 
-  (
-    cd ./serve || err "can't cd"
+  set -x
 
-    LF=$(printf "%b_" '\r'); LF=${LF%_}
+  ( LF=$(printf "%b_" '\r'); LF=${LF%_}
+
+  exec 3<"${fifo}.out" 4>"${fifo}.in"
+
+  while : ; do
+    read request <&3
+    file="${request#GET*/}"
+    file="${file% HTTP/*}"
+    file="${file%\?*}"
+
+    bd-log requested file "${file}"
 
     while : ; do
-      read request
-      file="${request#GET*/}"
-      file="${file% HTTP/*}"
-
-      while : ; do
-        read header
-        [ "$header" = "$LF" ] && break;
-      done
-
-      if [ -r "$file" ] ; then
-        printf "%s\r\n%s\r\n\r\n" "HTTP/1.0 200 OK" "Content-type: text/plain"
-        cat "$file"
-        printf "\r\n"
-      else
-        printf "%s\r\n\r\n" "HTTP/1.0 404 NOT FOUND"
-      fi
-
+      read header
+      header=${header%$LF}
+      [ "$header" = "" ] && break;
     done
-  ) <"${fifo}.out" >"${fifo}.in" &
+
+    if [ -r "./serve/$file" ] ; then
+      printf "%s\r\n%s\r\n\r\n" "HTTP/1.0 200 OK" "Content-type: text/plain" >&4
+      cat "./serve/$file" >&4
+      printf "\r\n" >&4
+      bd-log served file "${file}"
+    else
+      printf "%s\r\n\r\n" "HTTP/1.0 404 NOT FOUND" >&4
+      bd-log file "${file}" not found
+    fi
+
+  done ) &
   serv_pid=$!
   trap 'kill $serv_pid' EXIT
 }
+
+if [ $# -eq 1 ] && [ "$1" = -http ]; then
+  bd-log hi
+  exit
+fi
 
 
 MIRROR=${MIRROR:-$(select_file_mirror)}
@@ -101,20 +112,19 @@ fi
 export MIRROR MIRROR_PATH ANONCVS FLAVOUR VERSION
 
 setup_serv "$MIRROR/$MIRROR_PATH"
-create_new_image obsd-build.img
-run_http_serv
+#create_new_image obsd-build.img
+run_http_serv &
 
 
   #-object filter-dump,id=usernetdump,netdev=usernet,file=./usernet.pcap \
-  #-chardev pipe,id=httpfifo,path=./http \
 #strace -o qemu.strace -f \
-sleep 1
 qemu-system-x86_64 \
   -machine type=pc,accel=kvm \
   -m 512M \
   -boot once=n \
   -drive file=obsd-build.img,if=virtio,cache=writeback,discard=ignore,format=qcow2 \
-  -netdev user,id=usernet,tftp=./serve/,bootfile=auto_install,guestfwd=tcp::80-pipe:./http \
-  -device virtio-net-pci,netdev=usernet \
+  -chardev pipe,id=pipedev,path=./http \
+  -netdev 'user,id=user-net0,tftp=./serve/,bootfile=auto_install,guestfwd=:10.0.2.2:80-chardev:pipedev' \
+  -device virtio-net-pci,netdev=user-net0 \
   -display sdl \
   -name obsd-build
