@@ -3,102 +3,108 @@
   gather_facts: true
   tasks:
   - name: make kernel obj
-    make:
-      target: obj
-      chdir: /sys/arch/amd64/compile/GENERIC
+    shell: make obj >/dev/null
+    args:
+      chdir: /sys/arch/amd64/compile/GENERIC.MP
+      creates: /usr/obj/bsd/sys/arch/amd64/compile/GENERIC.MP
 
   - name: make kernel config
-    make:
-      target: config
-      chdir: /sys/arch/amd64/compile/GENERIC
+    shell: make config >/dev/null
+    args:
+      chdir: /sys/arch/amd64/compile/GENERIC.MP
+      creates: /usr/obj/bsd/sys/arch/amd64/compile/GENERIC.MP/Makefile
 
   - name: make kernel
-    make:
-      chdir: /sys/arch/amd64/compile/GENERIC
+    shell: make >/dev/null
+    args:
+      chdir: /sys/arch/amd64/compile/GENERIC.MP
+      creates: /usr/obj/bsd/sys/arch/amd64/compile/GENERIC.MP/bsd
+
+  - name: check if our kernel is fresh
+    shell: diff /bsd /usr/obj/bsd/sys/arch/amd64/compile/GENERIC.MP/bsd
+    ignore_errors: true
+    register: kerneldiffcheck
 
   - name: install kernel
-    make:
-      target: install
-      chdir: /sys/arch/amd64/compile/GENERIC
+    shell: make install >/dev/null
+    args:
+      chdir: /sys/arch/amd64/compile/GENERIC.MP
+    when: kerneldiffcheck|failed
 
   - name: reboot machine
-    command: reboot
+    shell: (sleep 5 && reboot) &
+    ignore_errors: true
+    when: kerneldiffcheck|failed
 
   - name: wait for it
     wait_for_connection:
+      delay: 60
+      timeout: 900
+    delegate_to: localhost
+    when: kerneldiffcheck|failed
 
   - name: make base system obj
-    make:
-      target: obj
+    shell: make obj >/dev/null
+    args:
       chdir: /usr/src
 
   - name: build base system
-    make:
-      target: build
+    shell: make build >/dev/null
+    args:
       chdir: /usr/src
 
   - name: run sysmerge
     command: sysmerge -b
 
   - name: run MAKEDEV
-    shell: "cd /dev && ./MAKEDEV all"
+    shell: ./MAKEDEV all
+    args:
+      chdir: /dev
 
   - name: mount /dest
     command: mount /dest
 
   - name: make base release
-    make:
-      target: release
+    shell: env DESTDIR=/dest/base RELEASEDIR=/var/release make release >/dev/null
+    args:
       chdir: /usr/src/etc
-      params:
-        DESTDIR: /dest/base
-        RELEASEDIR: /var/release
 
   - name: check file list
-    shell: cd /usr/src/distrib/sets && env RELEASEDIRDIR=/var/release DESTDIR=/dest/base sh checkflist
+    shell: env RELEASEDIRDIR=/var/release DESTDIR=/dest/base sh checkflist
+    args:
+      chdir: /usr/src/distrib/sets
 
   - name: bootstrap xenocara
-    make:
-      target: bootstrap
+    shell: make bootstrap >/dev/null
+    args:
       chdir: /usr/xenocara
 
   - name: make xenocara obj
-    make:
-      target: obj
+    shell: make obj >/dev/null
+    args:
       chdir: /usr/xenocara
 
   - name: build xenocara
-    make:
-      target: build
+    shell: make build >/dev/null
+    args:
       chdir: /usr/xenocara
 
   - name: make xenocara release
-    make:
-      target: release
+    shell: env DESTDIR=/dest/xbase RELEASEDIR=/var/release make release >/dev/null
+    args:
       chdir: /usr/xenocara
-      params:
-        DESTDIR: /dest/xbase
-        RELEASEDIR: /var/release
 
   - name: check xenocara release
-    make:
-      target: checkdist
+    shell: env DESTDIR=/dest/xbase RELEASEDIR=/var/release make checkdist >/dev/null
+    args:
       chdir: /usr/xenocara
-      params:
-        DESTDIR: /dest/xbase
-        RELEASEDIR: /var/release
 
   - name: create install images
-    make:
+    shell: env RELDIR=/var/release RELXDIR=/var/release make >/dev/null
+    args:
       chdir: /usr/src/distrib/amd64/iso
-      params:
-        RELDIR: /var/release
-        RELXDIR: /var/release
 
   - name: install install images (...)
-    make:
-      target: install
+    shell: env RELDIR=/var/release RELXDIR=/var/release make install >/dev/null
+    args:
       chdir: /usr/src/distrib/amd64/iso
-      params:
-        RELDIR: /var/release
-        RELXDIR: /var/release

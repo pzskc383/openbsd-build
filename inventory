@@ -69,6 +69,12 @@ while read _ _ host domain _; do
   fi
 done < /var/lib/libvirt/dnsmasq/default.leases
 
+if [ -z "$hostlist" ]; then
+  echo '{}'
+  exit
+fi
+
+
 if [ "$mode" = host ] ; then
   set -- $hostlist
   if [ $# -eq 0 ]; then

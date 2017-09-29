@@ -12,7 +12,7 @@
     raw: echo {{openbsd_mirror}}/pub/OpenBSD > /etc/installurl
 
   - name: install python
-    raw: pkg_add python27
+    raw: pkg_add -D snap python%2.7
 
   - name: provision ssh pubkey
     authorized_key:
@@ -26,10 +26,7 @@
       ansible_ssh_pass: root
 
   - name: install needed packages
-    openbsd_pkg:
-      name: "{{ item }}"
-      state: present
-      build: no
+    raw: pkg_add -D snap {{item}}
     with_items:
       - vim--no_x11
       - git
@@ -42,7 +39,7 @@
           dest: "{{ item.dst }}"
           owner: "{{ item.owner|default(omit) }}"
           group: "{{ item.group|default(omit) }}"
-          mode: "{{ item.mode|default(0640) }}"
+          mode: "{{ item.mode|default(0644) }}"
           force: yes
         with_items:
           - src: files/mk.conf
@@ -177,7 +174,7 @@
       - shell: ssh-keyscan {{openbsd_anoncvs}} 2>/dev/null >>/root/.ssh/known_hosts
 
   - name: checkout {{item}} from cvs
-    command: cvs -qd anoncvs@{{openbsd_anoncvs}}:/cvs checkout -P {{item}}
+    command: cvs -qd anoncvs@{{openbsd_anoncvs}}:/cvs get -P {{item}}
     args:
       chdir: /usr
     with_items:
@@ -190,7 +187,7 @@
       path: "{{ item.path }}"
       owner: "{{ item.owner }}"
       group: wsrc
-      mode: u=rw,g=rw,o=r
+      mode: ug=rwX,o=rX
       recurse: true
     with_items:
       - path: /usr/src
