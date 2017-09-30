@@ -9,6 +9,8 @@
       - src
       - xenocara
       - ports
+    become: true
+    become_user: srcfetch
 
   - name: checkout git ports repos
     block:
@@ -19,27 +21,18 @@
           dest: /usr/local/ports/my
           repo: https://pzskc383.dp.ua/code/openbsd-ports
     become: true
-    become_user: _pfetch
+    become_user: srcfetch
 
   - name: fix permissions
     file:
-      path: "{{ item.path }}"
-      owner: "{{ item.owner }}"
+      path: "{{ item }}"
+      owner: srcfetch
       group: wsrc
-      mode: u=rwX,g=rwX,o=rX
+      mode: u=grwX,o=rX
       recurse: true
-    with_items:
-      - path: /usr/src
-        owner: build
-      - path: /usr/xenocara
-        owner: build
-      - path: /usr/ports
-        owner: _pfetch
-
-  - name: clean directories
-    shell: make clean >/dev/null
-    args:
-      chdir: "{{item}}"
     with_items:
       - /usr/src
       - /usr/xenocara
+      - /usr/ports
+      - /usr/local/ports/my
+      - /usr/local/ports/gh-wip

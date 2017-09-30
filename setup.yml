@@ -71,26 +71,85 @@
           - src: files/root-tmux.conf
             dst: /root/.tmux.conf
 
-  - name: enable /dest mfs mount
-    block:
-      - file:
-          path: "{{ item }}"
-          state: directory
-          owner: build
-          mode: 0700
-        with_items:
-          - /dest
-          - /var/dest
-          - /var/dest/base
-          - /var/dest/xbase
-      - mount:
-          state: mounted
-          path: /dest
-          src: swap
-          fstype: mfs
-          opts: "rw,nosuid,noperm,-P/var/dest,-s1.5G,noauto"
-          dump: 0
-          passno: 0
+  - name: create /dest file tree
+    file:
+      path: "{{ item }}"
+      state: directory
+      owner: build
+      mode: 0700
+    with_items:
+      - /dest
+      - /var/dest
+      - /var/dest/base
+      - /var/dest/xbase
+
+  - name: create /dest mfs mount
+    mount:
+      state: present
+      path: /dest
+      src: swap
+      fstype: mfs
+      opts: "rw,nosuid,noperm,-P/var/dest,-s1.5G,noauto"
+      dump: 0
+      passno: 0
+
+
+  - name: enable serial console on boot
+    copy:
+      dest: /etc/boot.conf
+      src: boot.conf
+      owner: root
+      group: wheel
+      mode: u=rw,go=r
+
+  - name: install serial term size fix script
+    copy:
+      dest: /usr/local/bin/ttycom0fix.sh
+      src: ttycom0fix.sh
+      mode: u=rwx,go=rx
+      owner: root
+      group: bin
+
+  - name: set up serial console
+    lineinfile:
+      path: /etc/ttys
+      regexp: "^console"
+      line: 'console "/usr/libexec/getty std.115200" vt220 on secure local'
+
+  - name: create login class for srcfetch
+    blockinfile:
+      path: /etc/login.conf
+      validate: cap_mkdb %s
+      block: |
+        srcfetch:\
+            :umask=002:\
+            :tc=default:
+
+  - name: create source owner user
+    user:
+      name: srcfetch
+      comment: source owner user
+      login_class: srcfetch
+      group: wsrc
+      groups: wobj
+      shell: /sbin/nologin
+      home: /var/srcfetch
+      system: true
+      createhome: yes
+
+  - name: create srcfetch .ssh dir
+    file:
+      state: directory
+      path: /var/srcfetch/.ssh
+      owner: srcfetch
+      mode: 0700
+
+  - name: create srcfetch .ssh/known_hosts file
+    file:
+      state: touch
+      path: /var/srcfetch/.ssh/known_hosts
+      owner: srcfetch
+      mode: 0600
 
   - name: create /usr/obj directories
     block:
@@ -134,20 +193,16 @@
       - file:
           path: "{{ item.path }}"
           state: directory
-          owner: "{{ item.owner|default('build') }}"
+          owner: srcfetch
           group: wsrc
           mode: 0775
         with_items:
           - path: /usr/src
           - path: /usr/xenocara
           - path: /usr/ports
-            owner: _pfetch
           - path: /usr/local/ports
-            owner: _pfetch
           - path: /usr/local/ports/gh-wip
-            owner: _pfetch
           - path: /usr/local/ports/my
-            owner: _pfetch
 
   - name: checkout git ports repos
     block:
@@ -158,7 +213,7 @@
           dest: /usr/local/ports/my
           repo: https://pzskc383.dp.ua/code/openbsd-ports
     become: true
-    become_user: _pfetch
+    become_user: srcfetch
 
   - name: remove /usr/xobj
     file:
@@ -169,54 +224,32 @@
 
   - name: record CVS server ssh hostkey
     block:
-      - file: state=touch path=/root/.ssh/known_hosts
+      - file: state=touch path=/var/srcfetch/.ssh/known_hosts
       - shell: ssh-keygen -R {{openbsd_anoncvs}} 2>/dev/null
-      - shell: ssh-keyscan {{openbsd_anoncvs}} 2>/dev/null >>/root/.ssh/known_hosts
+      - shell: ssh-keyscan {{openbsd_anoncvs}} 2>/dev/null >>/var/srcfetch/.ssh/known_hosts
+    become: true
+    become_user: srcfetch
 
   - name: checkout {{item}} from cvs
     command: cvs -qd anoncvs@{{openbsd_anoncvs}}:/cvs get -P {{item}}
     args:
       chdir: /usr
+      creates: /usr/{{item}}/CVS
     with_items:
       - src
       - xenocara
       - ports
+    become: true
+    become_user: srcfetch
 
   - name: fix source permissions
     file:
       path: "{{ item.path }}"
-      owner: "{{ item.owner }}"
+      owner: srcfetch
       group: wsrc
       mode: ug=rwX,o=rX
       recurse: true
     with_items:
       - path: /usr/src
-        owner: build
       - path: /usr/xenocara
-        owner: build
       - path: /usr/ports
-        owner: _pfetch
-
-  - name: enable serial console on boot
-    copy:
-      dest: /etc/boot.conf
-      src: boot.conf
-      owner: root
-      group: wheel
-      mode: u=rw,go=r
-
-  - name: install serial term size fix script
-    copy:
-      dest: /usr/local/bin/ttycom0fix.sh
-      src: ttycom0fix.sh
-      mode: u=rwx,go=rx
-      owner: root
-      group: bin
-
-  - name: set up serial console
-    lineinfile:
-      path: /etc/ttys
-      regexp: "^console"
-      line: 'console "/usr/libexec/getty std.115200" vt220 on secure local'
-
-

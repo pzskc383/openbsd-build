@@ -2,6 +2,9 @@
 - hosts: obsd-build
   gather_facts: true
   tasks:
+  - name: mount /usr/src ramdisk
+    shell: umount /usr/src && mount_mfs -P/dev
+
   - name: make kernel obj
     shell: make obj >/dev/null
     args:
@@ -21,7 +24,7 @@
       creates: /usr/obj/bsd/sys/arch/amd64/compile/GENERIC.MP/bsd
 
   - name: check if our kernel is fresh
-    shell: diff /bsd /usr/obj/bsd/sys/arch/amd64/compile/GENERIC.MP/bsd
+    shell: diff /bsd.booted /usr/obj/bsd/sys/arch/amd64/compile/GENERIC.MP/bsd
     ignore_errors: true
     register: kerneldiffcheck
 
@@ -43,18 +46,25 @@
     delegate_to: localhost
     when: kerneldiffcheck|failed
 
+  - name: mount /usr/src ramdisk
+    command: mount /usr/src
+
   - name: make base system obj
     shell: make obj >/dev/null
     args:
       chdir: /usr/src
+    creates: /usr/obj/bsd/regress
 
   - name: build base system
     shell: make build >/dev/null
     args:
       chdir: /usr/src
+    creates: /var/sysmerge/etc.tgz
 
-  - name: run sysmerge
+  - name: check if any files need merging
     command: sysmerge -b
+    register: sysmergecheck
+    ignore_erorrs: true
 
   - name: run MAKEDEV
     shell: ./MAKEDEV all
@@ -73,6 +83,10 @@
     shell: env RELEASEDIRDIR=/var/release DESTDIR=/dest/base sh checkflist
     args:
       chdir: /usr/src/distrib/sets
+
+
+  - name: mount /usr/xenocara ramdisk
+    shell: umount /usr/xenocara && mount /usr/xenocara
 
   - name: bootstrap xenocara
     shell: make bootstrap >/dev/null

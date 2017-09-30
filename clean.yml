@@ -1,0 +1,47 @@
+- hosts: obsd-build
+  gather_facts: true
+  tasks:
+
+  - name: find out device for /usr/obj
+    shell: |
+      mount |grep /usr/obj|sed "s#\(/dev/\)\([^ ]*\).*#\1r\2#"
+    register: objdev
+
+
+  - name: umount obj
+    mount:
+      path: /usr/obj
+      state: unmounted
+
+  #~# find /usr/obj -type f|xargs stat -f "%z"|awk '{s+=$1}END{print s/NR}'
+  #67129.9
+  #~# find . -type f|sed 's#/[^/]*$##'|sort|uniq -c|awk '{s+=$1}END{print s/NR}'
+  #15.9612
+  - name: format /usr/obj
+    command: newfs -g67000 -h16 -otime {{objdev.stdout}}
+
+  - name: mount obj
+    command: mount /usr/obj
+
+  - name: create /usr/obj directories
+    block:
+      - file:
+          path: "/usr/obj/{{ item }}"
+          state: directory
+          owner: build
+          group: wobj
+          mode: 0770
+        with_items:
+          - bsd
+          - xenocara
+      - file:
+          path: "/usr/obj/{{ item }}"
+          state: directory
+          owner: _pbuild
+          group: wobj
+          mode: 0775
+        with_items:
+          - ports
+          - ports.bulk
+          - ports.update
+          - ports.locks
