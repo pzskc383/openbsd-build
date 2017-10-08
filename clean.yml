@@ -2,10 +2,10 @@
   gather_facts: true
   tasks:
 
-  - name: find out device for /usr/obj
-    shell: |
-      mount |grep /usr/obj|sed "s#\(/dev/\)\([^ ]*\).*#\1r\2#"
-    register: objdev
+  # - name: find out device for /usr/obj
+  #   shell: |
+  #     mount |grep /usr/obj|sed "s#\(/dev/\)\([^ ]*\).*#\1r\2#"
+  #   register: objdev
 
 
   - name: umount obj
@@ -18,7 +18,7 @@
   #~# find . -type f|sed 's#/[^/]*$##'|sort|uniq -c|awk '{s+=$1}END{print s/NR}'
   #15.9612
   - name: format /usr/obj
-    command: newfs -g67000 -h16 -otime {{objdev.stdout}}
+    command: newfs -g67000 -h16 -otime /dev/rsd0h
 
   - name: mount obj
     command: mount /usr/obj
@@ -45,3 +45,6 @@
           - ports.bulk
           - ports.update
           - ports.locks
+
+  - name: mount mfs for /usr/obj
+    shell: umount /usr/obj &&  mount_mfs -P/dev/sd0h -s4G -onosuid,noperm,nodev,rw swap /usr/obj

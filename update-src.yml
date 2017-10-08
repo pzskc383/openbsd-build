@@ -1,6 +1,9 @@
 ---
 - hosts: obsd-build
   tasks:
+  - name: fix mounts
+    shell: umount /usr/src && mount /usr/src && umount /usr/xenocara && mount /usr/xenocara
+
   - name: update /usr/{{item}} from cvs
     command: cvs -qd anoncvs@{{openbsd_anoncvs}}:/cvs up -Pd
     args:

@@ -3,25 +3,27 @@
   gather_facts: true
   tasks:
   - name: mount /usr/src ramdisk
-    shell: umount /usr/src && mount_mfs -P/dev
+    shell: umount /usr/src &&  mount_mfs -P/dev/sd0f -s1G -onosuid,noperm,nodev,rw swap /usr/src
 
   - name: make kernel obj
     shell: make obj >/dev/null
     args:
       chdir: /sys/arch/amd64/compile/GENERIC.MP
-      creates: /usr/obj/bsd/sys/arch/amd64/compile/GENERIC.MP
+    creates: /usr/obj/bsd/sys/arch/amd64/compile/GENERIC.MP
 
   - name: make kernel config
     shell: make config >/dev/null
     args:
       chdir: /sys/arch/amd64/compile/GENERIC.MP
-      creates: /usr/obj/bsd/sys/arch/amd64/compile/GENERIC.MP/Makefile
+    become: true
+    become_user: build
+    creates: /usr/obj/bsd/sys/arch/amd64/compile/GENERIC.MP/Makefile
 
   - name: make kernel
     shell: make >/dev/null
     args:
       chdir: /sys/arch/amd64/compile/GENERIC.MP
-      creates: /usr/obj/bsd/sys/arch/amd64/compile/GENERIC.MP/bsd
+    creates: /usr/obj/bsd/sys/arch/amd64/compile/GENERIC.MP/bsd
 
   - name: check if our kernel is fresh
     shell: diff /bsd.booted /usr/obj/bsd/sys/arch/amd64/compile/GENERIC.MP/bsd
@@ -47,7 +49,7 @@
     when: kerneldiffcheck|failed
 
   - name: mount /usr/src ramdisk
-    command: mount /usr/src
+    shell: umount /usr/src &&  mount_mfs -P/dev/sd0f -s1G -onosuid,noperm,nodev,rw swap /usr/src
 
   - name: make base system obj
     shell: make obj >/dev/null
@@ -64,7 +66,7 @@
   - name: check if any files need merging
     command: sysmerge -b
     register: sysmergecheck
-    ignore_erorrs: true
+    ignore_errors: true
 
   - name: run MAKEDEV
     shell: ./MAKEDEV all
@@ -84,9 +86,8 @@
     args:
       chdir: /usr/src/distrib/sets
 
-
   - name: mount /usr/xenocara ramdisk
-    shell: umount /usr/xenocara && mount /usr/xenocara
+    shell: umount /usr/xenocara &&  mount_mfs -P/dev/sd0g -s1G -onosuid,noperm,nodev,rw swap /usr/xenocara
 
   - name: bootstrap xenocara
     shell: make bootstrap >/dev/null
@@ -97,6 +98,7 @@
     shell: make obj >/dev/null
     args:
       chdir: /usr/xenocara
+    creates: /usr/obj/x11/distrib/notes
 
   - name: build xenocara
     shell: make build >/dev/null

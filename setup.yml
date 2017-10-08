@@ -10,6 +10,13 @@
 
   - name: set installurl
     raw: echo {{openbsd_mirror}}/pub/OpenBSD > /etc/installurl
+    when: false
+
+  - name: set pkg_path
+    raw: echo PKG_PATH={{openbsd_mirror}}/pub/OpenBSD/snapshots/packages/%a >> /etc/profile
+
+  - name: remove installurl
+    file: path=/etc/installurl state=absent
 
   - name: install python
     raw: pkg_add -D snap python%2.7
@@ -151,42 +158,64 @@
       owner: srcfetch
       mode: 0600
 
-  - name: create /usr/obj directories
-    block:
-      - file:
-          path: "/usr/obj/{{ item }}"
-          state: directory
-          owner: build
-          group: wobj
-          mode: 0775
-        with_items:
-          - bsd
-          - xenocara
-      - file:
-          path: "/usr/obj/{{ item }}"
-          state: directory
-          owner: _pbuild
-          group: _pbuild
-          mode: 0775
-        with_items:
-          - ports
-          - ports.bulk
-          - ports.update
-          - ports.locks
-
-  - name: create misc data directories
+  - name: create /usr/obj system directories
     file:
-      path: "{{ item }}"
+      path: "/usr/obj/{{ item }}"
+      state: directory
+      owner: build
+      group: wobj
+      mode: 0770
+    with_items:
+      - bsd
+      - x11
+
+  - name: create /usr/obj ports directories
+    file:
+      path: "/usr/obj/{{ item }}"
       state: directory
       owner: _pbuild
       group: _pbuild
-      mode: 0770
+      mode: 0775
     with_items:
-      - /var/ports
-      - /var/ports/plist
-      - /var/ports/distfiles
-      - /var/ports/packages
-      - /var/release
+      - ports
+      - ports.bulk
+      - ports.update
+      - ports.locks
+
+  - name: create /var/ports directories
+    file:
+      path: "{{ item.path }}"
+      state: directory
+      owner: "{{ item.owner }}"
+      group: _dpb
+      mode: "{{ item.mode|default(0770) }}"
+    with_items:
+      - path: /var/ports
+        owner: _pbuild
+        mode: 0775
+      - path: /var/ports/plist
+        owner: _pbuild
+      - path: /var/ports/distfiles
+        owner: _pbuild
+      - path: /var/ports/packages
+        owner: _pbuild
+      - path: /var/ports/log
+        owner: _pbuild
+
+  - name: create ports buildlist
+    copy:
+      files: files/buildlist
+      dest: /var/ports/buildlist
+      owner: _pbuild
+      group: wobj
+      mode: 0444
+
+  - name: create releasedir
+    file:
+      path: /var/release
+      state: directory
+      owner: build
+      mode: 0755
 
   - name: create directories for sources
     block:
