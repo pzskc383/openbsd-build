@@ -69,9 +69,7 @@
     ignore_errors: true
 
   - name: run MAKEDEV
-    shell: ./MAKEDEV all
-    args:
-      chdir: /dev
+    shell: cd /dev && sh MAKEDEV all
 
   - name: mount /dest
     command: mount /dest
