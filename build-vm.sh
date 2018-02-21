@@ -81,11 +81,11 @@ if ! [ -r "$PUBKEY_PATH" ]; then
   echo generating ssh pubkey
   ssh-keygen -q -f "$(echo $PUBKEY_PATH|sed s/.pub//)"
 fi
+SSH_PUBKEY="$(cat $PUBKEY_PATH)"
 
 echo generating answers file.
 eval "echo \"$(cat ./packer_httproot/install.tpl.sh )\"" \
   >./packer_httproot/install 2>/dev/null
-SSH_PUBKEY="$(cat $PUBKEY_PATH)"
 
 if [ -d ./output ]; then
   echo cleaning old output.
