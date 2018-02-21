@@ -1,7 +1,7 @@
 #!/bin/sh
 
-OPENBSD_MIRROR=${OPENBSD_MIRROR:-https://ftp2.eu.openbsd.org}
-OPENBSD_ANONCVS=${OPENBSD_ANONCVS:-anoncvs.eu.openbsd.org}
+MIRROR_HOST=${MIRROR_HOST:-https://ftp2.eu.openbsd.org}
+VERSION=${VERSION:-6.2}
 INSTALL_SOURCE=${INSTALL_SOURCE:-minimal}
 
 if [ -z "$ROOT_PASSWORD" ] ; then
@@ -9,17 +9,26 @@ if [ -z "$ROOT_PASSWORD" ] ; then
   printf "root password: %s\n\n" "$ROOT_PASSWORD"
 fi
 
+if [ "$VERSION" = current ];
+  ISO_TAG=62
+  FTP_TAG=snapshots
+else
+  ISO_TAG="$(echo $VERSION|tr -d'.')"
+  FTP_TAG=$VERSION
+fi
+MIRROR_BASE="pub/OpenBSD/${FTP_TAG}/amd64"
+
 if [ "$INSTALL_SOURCE" = full ] ; then
-  OPENBSD_ISO_NAME=install62.iso
+  ISO_NAME="install${ISO_TAG}.iso"
   SET_LOCATION=cd
   VERIFY_SETS=yes
 else
-  OPENBSD_ISO_NAME=cd62.iso
+  ISO_NAME="cd${ISO_TAG}.iso"
   SET_LOCATION=http
   VERIFY_SETS=no
 fi
 
-[ -d ./output-qemu ] && rm -rf ./output-qemu 2>/dev/null
+[ -d ./output ] && rm -rf ./output 2>/dev/null
 
 eval "echo \"$(cat ./packer_httproot/install.tpl.sh )\"" \
   >./packer_httproot/install 2>/dev/null
@@ -29,6 +38,9 @@ PACKER_KEY_INTERVAL=10ms # bit faster
 CHECKPOINT_DISABLE=1 # don't phone home
 [ -t 1 ] || { PACKER_NO_COLOR=1; export PACKER_NO_COLOR; }
 
-export OPENBSD_MIRROR OPENBSD_ISO_NAME OPENBSD_ANONCVS ROOT_PASSWORD 
+export MIRROR_HOST MIRROR_BASE ISO_NAME ROOT_PASSWORD
 export PACKER_KEY_INTERVAL CHECKPOINT_DISABLE
-exec packer build packer.json
+packer build packer.json
+
+if [ $? -eq 0 ]; then
+  echo 

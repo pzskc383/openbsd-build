@@ -1,18 +1,17 @@
 {
   "variables": {
-    "openbsd_answers": "{{env `OPENBSD_ANSWERS`}}",
-    "openbsd_mirror": "{{env `OPENBSD_MIRROR`}}",
-    "openbsd_anoncvs": "{{env `OPENBSD_ANONCVS`}}",
-    "openbsd_iso_name": "{{env `OPENBSD_ISO_NAME`}}",
+    "mirror_host": "{{env `MIRROR_HOST`}}",
+    "mirror_base": "{{env `MIRROR_BASE`}}",
+    "iso_name": "{{env `ISO_NAME`}}",
     "root_password": "{{env `ROOT_PASSWORD`}}"
   },
   "builders": [
     {
       "type": "qemu",
-      "iso_url": "{{user `openbsd_mirror`}}/pub/OpenBSD/snapshots/amd64/{{user `openbsd_iso_name`}}",
-      "iso_checksum_url": "{{user `openbsd_mirror`}}/pub/OpenBSD/snapshots/amd64/SHA256",
+      "iso_url": "{{user `mirror_host`}}/{{user `mirror_base`}}/{{user `iso_name`}}",
+      "iso_checksum_url": "{{user `mirror_host`}}/{{user `mirror_base`}}/SHA256",
       "iso_checksum_type": "sha256",
-      "iso_target_path": "iso/{{user `openbsd_iso_name`}}",
+      "iso_target_path": "iso/{{user `iso_name`}}",
       "output_directory": "output",
       "vm_name": "obsd-build.img",
       "accelerator": "kvm",
