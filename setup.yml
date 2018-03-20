@@ -2,38 +2,14 @@
 - hosts: obsd-build
   gather_facts: false
   tasks:
-  - name: save old ssh settings
-    set_fact:
-      old_ssh_key: "{{ansible_ssh_private_key_file}}"
-      ansible_ssh_pass: root
-      ansible_ssh_private_key_file: ""
-
   - name: set installurl
     raw: echo {{openbsd_mirror}}/pub/OpenBSD > /etc/installurl
-    when: false
-
-  - name: set pkg_path
-    raw: echo PKG_PATH={{openbsd_mirror}}/pub/OpenBSD/snapshots/packages/%a >> /etc/profile
-
-  - name: remove installurl
-    file: path=/etc/installurl state=absent
 
   - name: install python
-    raw: pkg_add -D snap python%2.7
-
-  - name: provision ssh pubkey
-    authorized_key:
-      user: root
-      key: "{{ lookup('file', playbook_dir+'/keys/obsd-build-access.pub') }}"
-
-  - name: restore ssh settings
-    set_fact:
-      ansible_ssh_private_key_file: "{{old_ssh_key}}"
-      old_ssh_key: ""
-      ansible_ssh_pass: root
+    raw: pkg_add python%2.7
 
   - name: install needed packages
-    raw: pkg_add -D snap {{item}}
+    raw: pkg_add {{item}}
     with_items:
       - vim--no_x11
       - git
@@ -188,11 +164,11 @@
       state: directory
       owner: "{{ item.owner }}"
       group: _dpb
-      mode: "{{ item.mode|default(0770) }}"
+      mode: "{{ item.mode|default('0770') }}"
     with_items:
       - path: /var/ports
         owner: _pbuild
-        mode: 0775
+        mode: "0775"
       - path: /var/ports/plist
         owner: _pbuild
       - path: /var/ports/distfiles
@@ -204,7 +180,7 @@
 
   - name: create ports buildlist
     copy:
-      files: files/buildlist
+      src: files/buildlist
       dest: /var/ports/buildlist
       owner: _pbuild
       group: wobj
