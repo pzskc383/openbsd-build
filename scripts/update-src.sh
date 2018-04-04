@@ -1,34 +1,62 @@
 #!/bin/sh
 set -eu
+CVSROOT="anoncvs@anoncvs.eu.openbsd.org:/cvs"
 
-cvs() {
-    env CVSROOT=anoncvs@anoncvs.eu.openbsd.org:/cvs \
-        HOME=/var/srcfetch \
-        doas -u srcfetch 
+log() {
+	prefix=$1; shift
+	logger -p local1.info "${prefix}: ${@}" >/dev/null 2>&1
 }
 
-git() {
+wait_for_pids() {
+	cont=1
+	while [ $cont -gt 0 ]; do
+		sleep 5;
+		for pid in ${pids}; do
+			if ! ps -p $pid >/dev/null; then
+				cont=0
+				break;
+			fi
+		done
+	done
+}
+
+rcvs() {
     env HOME=/var/srcfetch \
-        doas -u srcfetch 
+        doas -u srcfetch \
+	cvs -d${CVSROOT} "$@" 2>&1 |log srcfetch-cvs
 }
 
-echo "updating /usr/src"
+rgit() {
+    env HOME=/var/srcfetch \
+        doas -u srcfetch \
+	git "$@" 2>&1 |log srcfetch-git
+}
+
+echo "updating /usr/{src,xenocara, ports}"
+pids=""
 cd /usr/src
-cvs -q up -Pd
+rcvs -q up -Pd &
+pids="$!"
 
-echo "updating /usr/xenocara"
 cd /usr/xenocara
-cvs -q up -Pd
+rcvs -q up -Pd &
+pids="$pids $!"
 
-echo "updating main ports tree"
 cd /usr/ports
-cvs -q up -Pd
+rcvs -q up -Pd &
+pids="$pids $!"
 
-echo "updating openbsd-wip"
+wait_for_pids
+echo "Done"
+
+echo "updating openbsd-wip && custom ports"
 cd /usr/local/ports/gh-wip
-git pull --rebase
+rgit pull --rebase & 
+pids="$!"
 
-echo "updating my custom ports"
 cd /usr/local/ports/my 
-git pull --rebase
+rgit pull --rebase &
+pids="${pids} $!"
 
+wait_for_pids
+echo "Done"

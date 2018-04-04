@@ -2,9 +2,9 @@
 
 # settings
 MIRROR_HOST=${MIRROR_HOST:-https://ftp2.eu.openbsd.org}
-VERSION=${VERSION:-6.2}
+VERSION=${VERSION:-6.3}
 BRANCH=${BRANCH:-current}
-INSTALL_SOURCE=${INSTALL_SOURCE:-full}
+INSTALL_SOURCE=${INSTALL_SOURCE:-minimal}
 PUBKEY_PATH=./keys/obsd-build-access.pub
 RUN_TEST=0
 

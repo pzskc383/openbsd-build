@@ -4,3 +4,4 @@ iso/*.iso
 output/obsd-build.*
 packer_httproot/install
 .venv
+packages

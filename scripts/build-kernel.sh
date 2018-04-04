@@ -8,5 +8,6 @@ make config
 make -j4 && make install
 make clean
 
-echo /usr/local/sbin/start-on-rebuild.sh >> /etc/rc.local
-reboot
+# echo /usr/local/sbin/start-on-rebuild.sh >> /etc/rc.local
+
+sync; sync; sync && reboot

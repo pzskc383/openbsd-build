@@ -1,0 +1,85 @@
+
+
+
+
+
+
+
+
+
+
+
+machine		amd64
+include		"../../../conf/GENERIC"
+maxusers	80			
+
+option		USER_PCICONF	
+option  MTRR
+option	TMPFS
+rmoption NTFS
+rmoption CD9660
+rmoption UDF
+
+option	WSDISPLAY_COMPAT_USL	
+option	WSDISPLAY_COMPAT_RAWKBD
+option	WSDISPLAY_DEFAULTSCREENS=0
+option MULTIPROCESSOR
+
+config		bsd	swap generic
+
+mainbus0 at root
+
+bios0	at mainbus?
+cpu0	at mainbus?
+cpu*	at mainbus?
+ioapic*	at mainbus?
+pci*	at mainbus0
+pvbus0	at mainbus0
+isa0	at pcib?
+
+acpi0		at bios0
+acpitimer*	at acpi?
+acpibtn*	at acpi?
+acpicmos*	at acpi?
+acpicpu*	at acpi?
+acpiec*		at acpi?
+acpimadt0	at acpi?
+acpiprt*	at acpi?
+
+isadma0	at isa?
+com0	at isa? port 0x3f8 irq 4	
+pcppi0		at isa?
+
+pchb*	at pci?			
+pcib*	at pci?			
+uhci*	at pci?			
+usb*	at uhci?
+uhub*	at usb?			
+piixpm*	at pci?			
+iic*	at piixpm?
+
+pckbc0		at isa? flags 0x00	
+pckbd*		at pckbc?		
+pms*		at pckbc?		
+
+scsibus* at scsi?
+sd*	at scsibus?
+
+mpath0	at root
+
+vio*		at virtio?	
+vioblk*		at virtio?	
+viomb*		at virtio?	
+viornd*		at virtio?	
+virtio*		at pci?		
+
+wskbd*		at pckbd? mux 1
+wsmouse*	at pms? mux 0
+
+vga0	at isa?
+wsdisplay0 at vga?
+
+pseudo-device	hotplug		1
+pseudo-device	nvram		1
+pseudo-device	pctr		1
+pseudo-device	wsmux		2

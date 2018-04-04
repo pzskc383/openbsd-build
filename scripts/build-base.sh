@@ -1,10 +1,10 @@
 #!/bin/sh
 set -eu
 
-sed -i -e '/start-on-rebuild.sh/d' /etc/rc.local
+sed -i -e '/start-on-rebuild.sh/d' /etc/rc.local || :
 
-clean-obj.sh
-mount-src-mfs.sh
+# ~/scripts/clean-obj.sh
+# mount-src-mfs.sh
 
 logger "starting build"
 cd /usr/src
