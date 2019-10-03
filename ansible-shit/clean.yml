@@ -2,21 +2,17 @@
   gather_facts: true
   tasks:
 
-  # - name: find out device for /usr/obj
-  #   shell: |
-  #     mount |grep /usr/obj|sed "s#\(/dev/\)\([^ ]*\).*#\1r\2#"
-  #   register: objdev
+  - name: mount /usr/src ramdisk
+    shell: umount /usr/src &&  mount_mfs -P/dev/sd0f -s1G -onosuid,nodev,rw swap /usr/src
 
+  - name: mount /usr/xenocara ramdisk
+    shell: umount /usr/xenocara &&  mount_mfs -P/dev/sd0g -s1G -onosuid,nodev,rw swap /usr/xenocara
 
   - name: umount obj
     mount:
       path: /usr/obj
       state: unmounted
 
-  #~# find /usr/obj -type f|xargs stat -f "%z"|awk '{s+=$1}END{print s/NR}'
-  #67129.9
-  #~# find . -type f|sed 's#/[^/]*$##'|sort|uniq -c|awk '{s+=$1}END{print s/NR}'
-  #15.9612
   - name: format /usr/obj
     command: newfs -g67000 -h16 -otime /dev/rsd0h
 
@@ -33,7 +29,7 @@
           mode: 0770
         with_items:
           - bsd
-          - xenocara
+          - x11
       - file:
           path: "/usr/obj/{{ item }}"
           state: directory
@@ -47,4 +43,4 @@
           - ports.locks
 
   - name: mount mfs for /usr/obj
-    shell: umount /usr/obj &&  mount_mfs -P/dev/sd0h -s4G -onosuid,noperm,nodev,rw swap /usr/obj
+    shell: umount /usr/obj &&  mount_mfs -P/dev/sd0h -s4G -onosuid,nodev,rw,exec swap /usr/obj

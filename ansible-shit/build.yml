@@ -85,7 +85,7 @@
       chdir: /usr/src/distrib/sets
 
   - name: mount /usr/xenocara ramdisk
-    shell: umount /usr/xenocara &&  mount_mfs -P/dev/sd0g -s1G -onosuid,noperm,nodev,rw swap /usr/xenocara
+    shell: umount /usr/xenocara &&  mount_mfs -P/dev/sd0g -s1G -onosuid,nodev,rw,exec swap /usr/xenocara
 
   - name: bootstrap xenocara
     shell: make bootstrap >/dev/null
