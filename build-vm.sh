@@ -2,7 +2,7 @@
 
 # settings
 MIRROR_HOST=${MIRROR_HOST:-https://ftp2.eu.openbsd.org}
-VERSION=${VERSION:-6.3}
+VERSION=${VERSION:-7.7}
 BRANCH=${BRANCH:-current}
 INSTALL_SOURCE=${INSTALL_SOURCE:-minimal}
 PUBKEY_PATH=./keys/obsd-build-access.pub
@@ -64,18 +64,18 @@ else
 fi
 
 if [ "$INSTALL_SOURCE" = full ] ; then
-  ISO_NAME="install${SHORTVERSION}.iso"
+  INSTALL_IMG_NAME="install${SHORTVERSION}.img"
   SET_LOCATION=cd
   VERIFY_SETS=yes
 else
-  ISO_NAME="cd${SHORTVERSION}.iso"
+  INSTALL_IMG_NAME="cd${SHORTVERSION}.img"
   SET_LOCATION=http
   VERIFY_SETS=no
 fi
 
 MIRROR_BASE="pub/OpenBSD/${FTP_TAG}/amd64"
 
-ROOT_PASSWORD=$(dd if=/dev/random bs=1 |tr -dc ',-:@-Z^-{'|head -c 14)
+ROOT_PASSWORD=$(tr -dc ',-:@-Z^-{' </dev/urandom |head -c 14)
 
 if ! [ -r "$PUBKEY_PATH" ]; then
   echo generating ssh pubkey
@@ -101,13 +101,22 @@ fi
 
 echo running packer.
 
-PACKER_KEY_INTERVAL=10ms # bit faster
-CHECKPOINT_DISABLE=1 # don't phone home
+export PACKER_KEY_INTERVAL=10ms # bit faster
+export CHECKPOINT_DISABLE=1 # don't phone home
 [ -t 1 ] || { PACKER_NO_COLOR=1; export PACKER_NO_COLOR; }
+set -x
 
-export MIRROR_HOST MIRROR_BASE ISO_NAME ROOT_PASSWORD
-export PACKER_KEY_INTERVAL CHECKPOINT_DISABLE
-packer build packer.json
+#export PACKER_LOG=1
+#export PACKER_LIBVIRT_STREAM_CONSOLE=1
+
+export PK_VAR_mirror_base="${MIRROR_HOST}/${MIRROR_BASE}"
+export PK_VAR_install_img="${INSTALL_IMG_NAME}"
+export PK_VAR_root_password="${ROOT_PASSWORD}"
+
+templatefile=obsd-build.pkr.hcl
+
+packer validate $templatefile && \
+packer build $templatefile
 
 if [ $? -eq 0 ]; then
   echo build successful.

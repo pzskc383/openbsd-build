@@ -1,8 +1,8 @@
 /              1.0G
 swap           512M
-/usr           2.0G
-/usr/local     2.0G
-/usr/src       1.5G
-/usr/xenocara  1.5G
-/usr/obj       10G
+/usr           5.0G
+/usr/local     4.0G
+/usr/src       5.5G
+/usr/xenocara  2.5G
+/usr/obj       15G
 /var           10G-*
