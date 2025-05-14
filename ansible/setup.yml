@@ -6,7 +6,7 @@
     raw: echo {{openbsd_mirror}}/pub/OpenBSD > /etc/installurl
 
   - name: install python
-    raw: pkg_add python%2.7
+    raw: type python3 >/dev/null || pkg_add python%3
 
   - name: install needed packages
     raw: pkg_add {{item}}
@@ -17,12 +17,13 @@
 
   - name: install system config files
     block:
+      - file: state=directory dest=/var/downloads mode=0775
       - copy:
           src: "{{ item.src }}"
           dest: "{{ item.dst }}"
-          owner: "{{ item.owner|default(omit) }}"
-          group: "{{ item.group|default(omit) }}"
-          mode: "{{ item.mode|default(0644) }}"
+          owner: "root"
+          group: "wheel"
+          mode: 0644
           force: yes
         with_items:
           - src: files/mk.conf
@@ -31,7 +32,6 @@
             dst: /etc/man.conf
           - src: files/doas.conf
             dst: /etc/doas.conf
-      - file: state=directory dest=/var/downloads mode=0775
 
   - name: install root's config files
     block:
@@ -68,13 +68,14 @@
 
   - name: create /dest mfs mount
     mount:
-      state: present
+      state: mounted
       path: /dest
       src: swap
       fstype: mfs
       opts: "rw,nosuid,noperm,-P/var/dest,-s1.5G,noauto"
       dump: 0
       passno: 0
+      boot: false
 
 
   - name: enable serial console on boot

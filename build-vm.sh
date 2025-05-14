@@ -5,7 +5,7 @@ MIRROR_HOST=${MIRROR_HOST:-https://ftp2.eu.openbsd.org}
 VERSION=${VERSION:-7.7}
 BRANCH=${BRANCH:-current}
 INSTALL_SOURCE=${INSTALL_SOURCE:-full}
-PUBKEY_PATH=./keys/obsd-build-access.pub
+PUBKEY_PATH=./keys/obsd-build.pub 
 RUN_TEST=0
 
 usage() {
@@ -79,7 +79,7 @@ ROOT_PASSWORD=$(tr -dc ',-:@-Z^-{' </dev/urandom |head -c 14)
 
 if ! [ -r "$PUBKEY_PATH" ]; then
   echo generating ssh pubkey
-  ssh-keygen -q -f "$(echo $PUBKEY_PATH|sed s/.pub//)"
+  ssh-keygen -q -f "$(echo $PUBKEY_PATH|sed s/.pub//)" -C obsd-build-dyn -t ed25519
 fi
 SSH_PUBKEY="$(cat $PUBKEY_PATH)"
 
@@ -122,4 +122,7 @@ if [ $? -eq 0 ]; then
   mv ./output/obsd-build ./output/obsd-build.qcow2
   echo build successful.
   printf "root password: '%s'\n" "$ROOT_PASSWORD"
+
+  rm -f ./keys/root_pass
+  printf "$ROOT_PASSWORD" > ./keys/root_pass
 fi

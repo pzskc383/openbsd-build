@@ -26,7 +26,6 @@ variable "mirror_base" {
 variable "root_password" {
   type      = string
   sensitive = true
-  default   = "iloveyou"
 }
 
 # data "http" "install_img_checksum_file" {
@@ -71,10 +70,9 @@ source "qemu" "virt_machine" {
     "ftp -Vo - http://{{ .HTTPIP }}:{{ .HTTPPort }}/${local.disklabelfile} > /install_disklabel<enter><wait3s>",
     "ifconfig vio0 -autoconf<enter><wait3s>",
     "/autoinstall<enter><wait3s>",
-    "<wait3m>",
+    "<wait4m>",
     "root<enter><wait3s>",
-    "${var.root_password}<enter><wait2s>",
-    "shutdown -p now<enter>"
+    "${var.root_password}<enter><wait2s>"
   ]
   boot_key_interval = "50ms"
   boot_wait         = "15s"
