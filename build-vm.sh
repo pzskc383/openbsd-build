@@ -4,7 +4,7 @@
 MIRROR_HOST=${MIRROR_HOST:-https://ftp2.eu.openbsd.org}
 VERSION=${VERSION:-7.7}
 BRANCH=${BRANCH:-current}
-INSTALL_SOURCE=${INSTALL_SOURCE:-minimal}
+INSTALL_SOURCE=${INSTALL_SOURCE:-full}
 PUBKEY_PATH=./keys/obsd-build-access.pub
 RUN_TEST=0
 
@@ -64,11 +64,11 @@ else
 fi
 
 if [ "$INSTALL_SOURCE" = full ] ; then
-  INSTALL_IMG_NAME="install${SHORTVERSION}.img"
+  INSTALL_IMG_NAME="install${SHORTVERSION}.iso"
   SET_LOCATION=cd
   VERIFY_SETS=yes
 else
-  INSTALL_IMG_NAME="cd${SHORTVERSION}.img"
+  INSTALL_IMG_NAME="cd${SHORTVERSION}.iso"
   SET_LOCATION=http
   VERIFY_SETS=no
 fi
@@ -85,7 +85,7 @@ SSH_PUBKEY="$(cat $PUBKEY_PATH)"
 
 echo generating answers file.
 eval "echo \"$(cat ./packer_httproot/install.tpl.sh )\"" \
-  >./packer_httproot/install 2>/dev/null
+  >./packer_httproot/install.conf 2>/dev/null
 
 if [ -d ./output ]; then
   echo cleaning old output.
@@ -101,24 +101,25 @@ fi
 
 echo running packer.
 
-export PACKER_KEY_INTERVAL=10ms # bit faster
 export CHECKPOINT_DISABLE=1 # don't phone home
 [ -t 1 ] || { PACKER_NO_COLOR=1; export PACKER_NO_COLOR; }
-set -x
 
-#export PACKER_LOG=1
-#export PACKER_LIBVIRT_STREAM_CONSOLE=1
+export PACKER_LOG=1
+export PACKER_DEBUG= #-debug
+export PACKER_LIBVIRT_STREAM_CONSOLE=1
 
-export PK_VAR_mirror_base="${MIRROR_HOST}/${MIRROR_BASE}"
-export PK_VAR_install_img="${INSTALL_IMG_NAME}"
-export PK_VAR_root_password="${ROOT_PASSWORD}"
+export PKR_VAR_mirror_base="${MIRROR_HOST}/${MIRROR_BASE}"
+export PKR_VAR_install_img="${INSTALL_IMG_NAME}"
+export PKR_VAR_root_password="${ROOT_PASSWORD}"
 
 templatefile=obsd-build.pkr.hcl
 
+echo Build start : $(date)
 packer validate $templatefile && \
-packer build $templatefile
+packer build ${PACKER_DEBUG}  $templatefile
 
 if [ $? -eq 0 ]; then
+  mv ./output/obsd-build ./output/obsd-build.qcow2
   echo build successful.
   printf "root password: '%s'\n" "$ROOT_PASSWORD"
 fi

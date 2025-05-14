@@ -1,8 +1,0 @@
-/              1.0G
-swap           512M
-/usr           2.0G
-/usr/local     2.0G
-/usr/src       1.5G
-/usr/xenocara  1.5G
-/usr/obj       10G
-/var           10G-*

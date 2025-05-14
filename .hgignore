@@ -1,8 +1,8 @@
 syntax: glob
 *.retry
 iso/*.iso
-output/obsd-build.*
-packer_httproot/install
+output/obsd-build*
+packer_httproot/install.conf
 .venv
 packages
 crash.log
