@@ -5,25 +5,25 @@
   - name: mount /usr/src ramdisk
     shell: umount /usr/src &&  mount_mfs -P/dev/sd0f -s1G -onosuid,noperm,nodev,rw swap /usr/src
 
-  - name: make kernel obj
+  - name: "make kernel obj"
     shell: make obj >/dev/null
     args:
       chdir: /sys/arch/amd64/compile/GENERIC.MP
-    creates: /usr/obj/bsd/sys/arch/amd64/compile/GENERIC.MP
+      creates: /usr/obj/bsd/sys/arch/amd64/compile/GENERIC.MP
 
-  - name: make kernel config
+  - name: "make kernel config"
     shell: make config >/dev/null
     args:
       chdir: /sys/arch/amd64/compile/GENERIC.MP
+      creates: /usr/obj/bsd/sys/arch/amd64/compile/GENERIC.MP/Makefile
     become: true
     become_user: build
-    creates: /usr/obj/bsd/sys/arch/amd64/compile/GENERIC.MP/Makefile
 
   - name: make kernel
     shell: make >/dev/null
     args:
       chdir: /sys/arch/amd64/compile/GENERIC.MP
-    creates: /usr/obj/bsd/sys/arch/amd64/compile/GENERIC.MP/bsd
+      creates: /usr/obj/bsd/sys/arch/amd64/compile/GENERIC.MP/bsd
 
   - name: check if our kernel is fresh
     shell: diff /bsd.booted /usr/obj/bsd/sys/arch/amd64/compile/GENERIC.MP/bsd
@@ -55,13 +55,13 @@
     shell: make obj >/dev/null
     args:
       chdir: /usr/src
-    creates: /usr/obj/bsd/regress
+      creates: /usr/obj/bsd/regress
 
   - name: build base system
     shell: make build >/dev/null
     args:
       chdir: /usr/src
-    creates: /var/sysmerge/etc.tgz
+      creates: /var/sysmerge/etc.tgz
 
   - name: check if any files need merging
     command: sysmerge -b
@@ -96,7 +96,7 @@
     shell: make obj >/dev/null
     args:
       chdir: /usr/xenocara
-    creates: /usr/obj/x11/distrib/notes
+      creates: /usr/obj/x11/distrib/notes
 
   - name: build xenocara
     shell: make build >/dev/null
