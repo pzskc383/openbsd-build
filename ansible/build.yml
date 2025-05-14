@@ -1,124 +1,130 @@
 ---
-- hosts: obsd-build
+- name: Building sources
+  hosts: obsd-build
   gather_facts: true
   tasks:
-  - name: mount /usr/src ramdisk
-    shell: umount /usr/src &&  mount_mfs -P/dev/sd0f -s1G -onosuid,noperm,nodev,rw swap /usr/src
+    # - name: Mount /usr/src ramdisk
+    #   ansible.builtin.shell: umount /usr/src &&  mount_mfs -P/dev/sd0f -s1G -onosuid,noperm,nodev,rw swap /usr/src
 
-  - name: "make kernel obj"
-    shell: make obj >/dev/null
-    args:
-      chdir: /sys/arch/amd64/compile/GENERIC.MP
+    - name: Make kernel obj
+      ansible.builtin.shell: make obj >/dev/null
+      args:
+        chdir: /sys/arch/amd64/compile/GENERIC.MP
       creates: /usr/obj/bsd/sys/arch/amd64/compile/GENERIC.MP
 
-  - name: "make kernel config"
-    shell: make config >/dev/null
-    args:
-      chdir: /sys/arch/amd64/compile/GENERIC.MP
+    - name: Make kernel config
+      ansible.builtin.shell: make config >/dev/null
+      args:
+        chdir: /sys/arch/amd64/compile/GENERIC.MP
       creates: /usr/obj/bsd/sys/arch/amd64/compile/GENERIC.MP/Makefile
-    become: true
-    become_user: build
+      become: true
+      become_user: build
 
-  - name: make kernel
-    shell: make >/dev/null
-    args:
-      chdir: /sys/arch/amd64/compile/GENERIC.MP
+    - name: Make kernel
+      ansible.builtin.shell: make >/dev/null
+      args:
+        chdir: /sys/arch/amd64/compile/GENERIC.MP
       creates: /usr/obj/bsd/sys/arch/amd64/compile/GENERIC.MP/bsd
 
-  - name: check if our kernel is fresh
-    shell: diff /bsd.booted /usr/obj/bsd/sys/arch/amd64/compile/GENERIC.MP/bsd
-    ignore_errors: true
-    register: kerneldiffcheck
+    - name: Check if our kernel is fresh
+      ansible.builtin.command: diff /bsd.booted /usr/obj/bsd/sys/arch/amd64/compile/GENERIC.MP/bsd
+      ignore_errors: true
+      register: kerneldiffcheck
+      changed_when: kerneldiffcheck.rc != 0
 
-  - name: install kernel
-    shell: make install >/dev/null
-    args:
-      chdir: /sys/arch/amd64/compile/GENERIC.MP
-    when: kerneldiffcheck|failed
+    - name: Install kernel
+      ansible.builtin.shell:
+      args:
+        cmd: make install >/dev/null
+        chdir: /sys/arch/amd64/compile/GENERIC.MP
+      when: kerneldiffcheck|failed
 
-  - name: reboot machine
-    shell: (sleep 5 && reboot) &
-    ignore_errors: true
-    when: kerneldiffcheck|failed
+    - name: Reboot machine
+      ansible.builtin.shell:
+      args:
+        cmd:  (sleep 5 && reboot) &
+        ignore_errors: true
+      when: kerneldiffcheck|failed
 
-  - name: wait for it
-    wait_for_connection:
-      delay: 60
-      timeout: 900
-    delegate_to: localhost
-    when: kerneldiffcheck|failed
+    - name: Wait for it
+      ansible.builtin.wait_for_connection:
+        delay: 60
+        timeout: 900
+      delegate_to: localhost
+      when: kerneldiffcheck|failed
 
-  - name: mount /usr/src ramdisk
-    shell: umount /usr/src &&  mount_mfs -P/dev/sd0f -s1G -onosuid,noperm,nodev,rw swap /usr/src
+    # - name: Mount /usr/src ramdisk
+    #   ansible.builtin.shell: umount /usr/src &&  mount_mfs -P/dev/sd0f -s1G -onosuid,noperm,nodev,rw swap /usr/src
 
-  - name: make base system obj
-    shell: make obj >/dev/null
-    args:
-      chdir: /usr/src
+    - name: Make base system obj
+      ansible.builtin.shell: make obj >/dev/null
+      args:
+        chdir: /usr/src
       creates: /usr/obj/bsd/regress
 
-  - name: build base system
-    shell: make build >/dev/null
-    args:
-      chdir: /usr/src
+    - name: Build base system
+      ansible.builtin.shell: make build >/dev/null
+      args:
+        chdir: /usr/src
       creates: /var/sysmerge/etc.tgz
 
-  - name: check if any files need merging
-    command: sysmerge -b
-    register: sysmergecheck
-    ignore_errors: true
+    - name: Check if any files need merging
+      ansible.builtin.command:
+        cmd: sysmerge -b
+        register: sysmergecheck
+        ignore_errors: true
 
-  - name: run MAKEDEV
-    shell: cd /dev && sh MAKEDEV all
+    - name: Run MAKEDEV
+      ansible.builtin.shell: cd /dev && sh MAKEDEV all
 
-  - name: mount /dest
-    command: mount /dest
+    - name: Mount /dest
+      ansible.builtin.command: mount /dest
 
-  - name: make base release
-    shell: env DESTDIR=/dest/base RELEASEDIR=/var/release make release >/dev/null
-    args:
-      chdir: /usr/src/etc
+    - name: Make base release
+      ansible.builtin.shell: env DESTDIR=/dest/base RELEASEDIR=/var/release make release >/dev/null
+      args:
+        chdir: /usr/src/etc
 
-  - name: check file list
-    shell: env RELEASEDIRDIR=/var/release DESTDIR=/dest/base sh checkflist
-    args:
-      chdir: /usr/src/distrib/sets
+    - name: Check file list
+      ansible.builtin.command: env RELEASEDIRDIR=/var/release DESTDIR=/dest/base sh checkflist
+      args:
+        chdir: /usr/src/distrib/sets
 
-  - name: mount /usr/xenocara ramdisk
-    shell: umount /usr/xenocara &&  mount_mfs -P/dev/sd0g -s1G -onosuid,nodev,rw,exec swap /usr/xenocara
+    # - name: Mount /usr/xenocara ramdisk
+    #   ansible.builtin.shell: umount /usr/xenocara &&  mount_mfs -P/dev/sd0g -s1G -onosuid,nodev,rw,exec swap /usr/xenocara
 
-  - name: bootstrap xenocara
-    shell: make bootstrap >/dev/null
-    args:
-      chdir: /usr/xenocara
+    - name: Bootstrap xenocara
+      ansible.builtin.shell: make bootstrap >/dev/null
+      args:
+        chdir: /usr/xenocara
 
-  - name: make xenocara obj
-    shell: make obj >/dev/null
-    args:
-      chdir: /usr/xenocara
+    - name: Make xenocara obj
+      ansible.builtin.shell: make obj >/dev/null
+      args:
+        chdir: /usr/xenocara
       creates: /usr/obj/x11/distrib/notes
 
-  - name: build xenocara
-    shell: make build >/dev/null
-    args:
-      chdir: /usr/xenocara
+    - name: Build xenocara
+      ansible.builtin.shell: make build >/dev/null
+      args:
+        chdir: /usr/xenocara
 
-  - name: make xenocara release
-    shell: env DESTDIR=/dest/xbase RELEASEDIR=/var/release make release >/dev/null
-    args:
-      chdir: /usr/xenocara
+    - name: Make xenocara release
+      ansible.builtin.shell: env DESTDIR=/dest/xbase RELEASEDIR=/var/release make release >/dev/null
+      args:
+        chdir: /usr/xenocara
 
-  - name: check xenocara release
-    shell: env DESTDIR=/dest/xbase RELEASEDIR=/var/release make checkdist >/dev/null
-    args:
-      chdir: /usr/xenocara
+    - name: Check xenocara release
+      ansible.builtin.shell: env DESTDIR=/dest/xbase RELEASEDIR=/var/release make checkdist >/dev/null
+      args:
+        chdir: /usr/xenocara
 
-  - name: create install images
-    shell: env RELDIR=/var/release RELXDIR=/var/release make >/dev/null
-    args:
-      chdir: /usr/src/distrib/amd64/iso
+    - name: Create install images
+      ansible.builtin.shell: env RELDIR=/var/release RELXDIR=/var/release make >/dev/null
+      args:
+        chdir: /usr/src/distrib/amd64/iso
 
-  - name: install install images (...)
-    shell: env RELDIR=/var/release RELXDIR=/var/release make install >/dev/null
-    args:
-      chdir: /usr/src/distrib/amd64/iso
+    - name: Install install images (...)
+      ansible.builtin.shell: env RELDIR=/var/release RELXDIR=/var/release make install >/dev/null
+      args:
+        chdir: /usr/src/distrib/amd64/iso

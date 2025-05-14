@@ -1,41 +1,40 @@
 ---
 - hosts: obsd-build
   tasks:
-  - name: fix mounts
-    shell: umount /usr/src && mount /usr/src && umount /usr/xenocara && mount /usr/xenocara
+    - name: Fix mounts
+      ansible.builtin.shell: umount /usr/src && mount /usr/src && umount /usr/xenocara && mount /usr/xenocara
+    - name: Update /usr/{{item}} from cvs
+      ansible.builtin.command: cvs -qd anoncvs@{{openbsd_anoncvs}}:/cvs up -Pd
+      args:
+        chdir: /usr/{{ item }}
+      with_items:
+        - src
+        - xenocara
+        - ports
+      become: true
+      become_user: srcfetch
 
-  - name: update /usr/{{item}} from cvs
-    command: cvs -qd anoncvs@{{openbsd_anoncvs}}:/cvs up -Pd
-    args:
-      chdir: /usr/{{item}}
-    with_items:
-      - src
-      - xenocara
-      - ports
-    become: true
-    become_user: srcfetch
+    - name: Checkout git ports repos
+      become: true
+      become_user: srcfetch
 
-  - name: checkout git ports repos
-    block:
-      - git:
-          dest: /usr/local/ports/gh-wip
-          repo: https://github.com/jasperla/openbsd-wip
-      - git:
-          dest: /usr/local/ports/my
-          repo: https://pzskc383.dp.ua/code/openbsd-ports
-    become: true
-    become_user: srcfetch
-
-  - name: fix permissions
-    file:
-      path: "{{ item }}"
-      owner: srcfetch
-      group: wsrc
-      mode: u=grwX,o=rX
-      recurse: true
-    with_items:
-      - /usr/src
-      - /usr/xenocara
-      - /usr/ports
-      - /usr/local/ports/my
-      - /usr/local/ports/gh-wip
+      block:
+        - ansible.builtin.git:
+            dest: /usr/local/ports/gh-wip
+            repo: https://github.com/jasperla/openbsd-wip
+        - ansible.builtin.git:
+            dest: /usr/local/ports/my
+            repo: https://pzskc383.dp.ua/code/openbsd-ports
+    - name: Fix permissions
+      ansible.builtin.file:
+        path: "{{ item }}"
+        owner: srcfetch
+        group: wsrc
+        mode: u=grwX,o=rX
+        recurse: true
+      with_items:
+        - /usr/src
+        - /usr/xenocara
+        - /usr/ports
+        - /usr/local/ports/my
+        - /usr/local/ports/gh-wip

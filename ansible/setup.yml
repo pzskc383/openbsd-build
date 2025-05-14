@@ -2,260 +2,262 @@
 - hosts: obsd-build
   gather_facts: false
   tasks:
-  - name: set installurl
-    raw: echo {{openbsd_mirror}}/pub/OpenBSD > /etc/installurl
+    - name: Set installurl
+      ansible.builtin.raw: echo {{openbsd_mirror}}/pub/OpenBSD > /etc/installurl
+    - name: Install python
+      ansible.builtin.raw: type python3 >/dev/null || pkg_add python%3
+    - name: Install needed packages
+      ansible.builtin.raw: pkg_add {{item}}
+      with_items:
+        - vim--no_x11
+        - git
+        - mercurial
 
-  - name: install python
-    raw: type python3 >/dev/null || pkg_add python%3
+    - name: Install system config files
+      block:
+        - ansible.builtin.file:
+            state: directory
+            dest: /var/downloads
+            mode: "0775"
+        - ansible.builtin.copy:
+            src: "{{ item.src }}"
+            dest: "{{ item.dst }}"
+            owner: root
+            group: wheel
+            mode: "0644"
+            force: true
+          with_items:
+            - src: files/mk.conf
+              dst: /etc/mk.conf
+            - src: files/man.conf
+              dst: /etc/man.conf
+            - src: files/doas.conf
+              dst: /etc/doas.conf
 
-  - name: install needed packages
-    raw: pkg_add {{item}}
-    with_items:
-      - vim--no_x11
-      - git
-      - mercurial
+    - name: Install root's config files
+      block:
+        - ansible.builtin.blockinfile:
+            insertafter: EOF
+            path: /root/.profile
+            content: "{{ lookup('file', 'files/root-profile.snip') }}"
+        - ansible.builtin.copy:
+            src: "{{ item.src }}"
+            dest: "{{ item.dst }}"
+            owner: root
+            group: wheel
+            mode: "0600"
+            force: true
+          with_items:
+            - src: files/root-kshrc
+              dst: /root/.kshrc
+            - src: files/root-vimrc
+              dst: /root/.vimrc
+            - src: files/root-tmux.conf
+              dst: /root/.tmux.conf
 
-  - name: install system config files
-    block:
-      - file: state=directory dest=/var/downloads mode=0775
-      - copy:
-          src: "{{ item.src }}"
-          dest: "{{ item.dst }}"
-          owner: "root"
-          group: "wheel"
-          mode: 0644
-          force: yes
-        with_items:
-          - src: files/mk.conf
-            dst: /etc/mk.conf
-          - src: files/man.conf
-            dst: /etc/man.conf
-          - src: files/doas.conf
-            dst: /etc/doas.conf
+    - name: Create /dest file tree
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: build
+        mode: "0700"
+      with_items:
+        - /dest
+        - /var/dest
+        - /var/dest/base
+        - /var/dest/xbase
 
-  - name: install root's config files
-    block:
-      - blockinfile:
-          insertafter: EOF
-          path: /root/.profile
-          content: "{{ lookup('file', 'files/root-profile.snip') }}"
-      - copy:
-          src: "{{ item.src }}"
-          dest: "{{ item.dst }}"
-          owner: "root"
-          group: "wheel"
-          mode: 0600
-          force: yes
-        with_items:
-          - src: files/root-kshrc
-            dst: /root/.kshrc
-          - src: files/root-vimrc
-            dst: /root/.vimrc
-          - src: files/root-tmux.conf
-            dst: /root/.tmux.conf
+    - name: Create /dest mfs mount
+      ansible.posix.mount:
+        state: mounted
+        path: /dest
+        src: swap
+        fstype: mfs
+        opts: rw,nosuid,noperm,-P/var/dest,-s1.5G,noauto
+        dump: 0
+        passno: 0
+        boot: false
 
-  - name: create /dest file tree
-    file:
-      path: "{{ item }}"
-      state: directory
-      owner: build
-      mode: 0700
-    with_items:
-      - /dest
-      - /var/dest
-      - /var/dest/base
-      - /var/dest/xbase
+    - name: Enable serial console on boot
+      ansible.builtin.copy:
+        dest: /etc/boot.conf
+        src: boot.conf
+        owner: root
+        group: wheel
+        mode: u=rw,go=r
 
-  - name: create /dest mfs mount
-    mount:
-      state: mounted
-      path: /dest
-      src: swap
-      fstype: mfs
-      opts: "rw,nosuid,noperm,-P/var/dest,-s1.5G,noauto"
-      dump: 0
-      passno: 0
-      boot: false
+    - name: Install serial term size fix script
+      ansible.builtin.copy:
+        dest: /usr/local/bin/ttycom0fix.sh
+        src: ttycom0fix.sh
+        mode: u=rwx,go=rx
+        owner: root
+        group: bin
 
+    - name: Set up serial console
+      ansible.builtin.lineinfile:
+        path: /etc/ttys
+        regexp: ^console
+        line: console "/usr/libexec/getty std.115200" vt220 on secure local
 
-  - name: enable serial console on boot
-    copy:
-      dest: /etc/boot.conf
-      src: boot.conf
-      owner: root
-      group: wheel
-      mode: u=rw,go=r
+    - name: Create login class for srcfetch
+      ansible.builtin.blockinfile:
+        path: /etc/login.conf
+        validate: cap_mkdb %s
+        block: |
+          srcfetch:\
+              :umask=002:\
+              :tc=default:
 
-  - name: install serial term size fix script
-    copy:
-      dest: /usr/local/bin/ttycom0fix.sh
-      src: ttycom0fix.sh
-      mode: u=rwx,go=rx
-      owner: root
-      group: bin
+    - name: Create source owner user
+      ansible.builtin.user:
+        name: srcfetch
+        comment: source owner user
+        login_class: srcfetch
+        group: wsrc
+        groups: wobj
+        shell: /sbin/nologin
+        home: /var/srcfetch
+        system: true
+        createhome: true
 
-  - name: set up serial console
-    lineinfile:
-      path: /etc/ttys
-      regexp: "^console"
-      line: 'console "/usr/libexec/getty std.115200" vt220 on secure local'
+    - name: Create srcfetch .ssh dir
+      ansible.builtin.file:
+        state: directory
+        path: /var/srcfetch/.ssh
+        owner: srcfetch
+        mode: "0700"
 
-  - name: create login class for srcfetch
-    blockinfile:
-      path: /etc/login.conf
-      validate: cap_mkdb %s
-      block: |
-        srcfetch:\
-            :umask=002:\
-            :tc=default:
+    - name: Create srcfetch .ssh/known_hosts file
+      ansible.builtin.file:
+        state: touch
+        path: /var/srcfetch/.ssh/known_hosts
+        owner: srcfetch
+        mode: "0600"
 
-  - name: create source owner user
-    user:
-      name: srcfetch
-      comment: source owner user
-      login_class: srcfetch
-      group: wsrc
-      groups: wobj
-      shell: /sbin/nologin
-      home: /var/srcfetch
-      system: true
-      createhome: yes
+    - name: Create /usr/obj system directories
+      ansible.builtin.file:
+        path: /usr/obj/{{ item }}
+        state: directory
+        owner: build
+        group: wobj
+        mode: "0770"
+      with_items:
+        - bsd
+        - x11
 
-  - name: create srcfetch .ssh dir
-    file:
-      state: directory
-      path: /var/srcfetch/.ssh
-      owner: srcfetch
-      mode: 0700
-
-  - name: create srcfetch .ssh/known_hosts file
-    file:
-      state: touch
-      path: /var/srcfetch/.ssh/known_hosts
-      owner: srcfetch
-      mode: 0600
-
-  - name: create /usr/obj system directories
-    file:
-      path: "/usr/obj/{{ item }}"
-      state: directory
-      owner: build
-      group: wobj
-      mode: 0770
-    with_items:
-      - bsd
-      - x11
-
-  - name: create /usr/obj ports directories
-    file:
-      path: "/usr/obj/{{ item }}"
-      state: directory
-      owner: _pbuild
-      group: _pbuild
-      mode: 0775
-    with_items:
-      - ports
-      - ports.bulk
-      - ports.update
-      - ports.locks
-
-  - name: create /var/ports directories
-    file:
-      path: "{{ item.path }}"
-      state: directory
-      owner: "{{ item.owner }}"
-      group: _dpb
-      mode: "{{ item.mode|default('0770') }}"
-    with_items:
-      - path: /var/ports
+    - name: Create /usr/obj ports directories
+      ansible.builtin.file:
+        path: /usr/obj/{{ item }}
+        state: directory
         owner: _pbuild
+        group: _pbuild
         mode: "0775"
-      - path: /var/ports/plist
+      with_items:
+        - ports
+        - ports.bulk
+        - ports.update
+        - ports.locks
+
+    - name: Create /var/ports directories
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: directory
+        owner: "{{ item.owner }}"
+        group: _dpb
+        mode: "{{ item.mode | default('0770') }}"
+      with_items:
+        - path: /var/ports
+          owner: _pbuild
+          mode: "0775"
+        - path: /var/ports/plist
+          owner: _pbuild
+        - path: /var/ports/distfiles
+          owner: _pbuild
+        - path: /var/ports/packages
+          owner: _pbuild
+        - path: /var/ports/log
+          owner: _pbuild
+
+    - name: Create ports buildlist
+      ansible.builtin.copy:
+        src: files/buildlist
+        dest: /var/ports/buildlist
         owner: _pbuild
-      - path: /var/ports/distfiles
-        owner: _pbuild
-      - path: /var/ports/packages
-        owner: _pbuild
-      - path: /var/ports/log
-        owner: _pbuild
+        group: wobj
+        mode: "0444"
 
-  - name: create ports buildlist
-    copy:
-      src: files/buildlist
-      dest: /var/ports/buildlist
-      owner: _pbuild
-      group: wobj
-      mode: 0444
+    - name: Create releasedir
+      ansible.builtin.file:
+        path: /var/release
+        state: directory
+        owner: build
+        mode: "0755"
 
-  - name: create releasedir
-    file:
-      path: /var/release
-      state: directory
-      owner: build
-      mode: 0755
+    - name: Create directories for sources
+      block:
+        - ansible.builtin.file:
+            path: "{{ item.path }}"
+            state: directory
+            owner: srcfetch
+            group: wsrc
+            mode: "0775"
+          with_items:
+            - path: /usr/src
+            - path: /usr/xenocara
+            - path: /usr/ports
+            - path: /usr/local/ports
+            - path: /usr/local/ports/gh-wip
+            - path: /usr/local/ports/my
 
-  - name: create directories for sources
-    block:
-      - file:
-          path: "{{ item.path }}"
-          state: directory
-          owner: srcfetch
-          group: wsrc
-          mode: 0775
-        with_items:
-          - path: /usr/src
-          - path: /usr/xenocara
-          - path: /usr/ports
-          - path: /usr/local/ports
-          - path: /usr/local/ports/gh-wip
-          - path: /usr/local/ports/my
+    - name: Checkout git ports repos
+      become: true
+      become_user: srcfetch
 
-  - name: checkout git ports repos
-    block:
-      - git:
-          dest: /usr/local/ports/gh-wip
-          repo: https://github.com/jasperla/openbsd-wip
-      - git:
-          dest: /usr/local/ports/my
-          repo: https://pzskc383.dp.ua/code/openbsd-ports
-    become: true
-    become_user: srcfetch
+      block:
+        - ansible.builtin.git:
+            dest: /usr/local/ports/gh-wip
+            repo: https://github.com/jasperla/openbsd-wip
+        - ansible.builtin.git:
+            dest: /usr/local/ports/my
+            repo: https://pzskc383.dp.ua/code/openbsd-ports
+    - name: Remove /usr/xobj
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      with_items:
+        - /usr/xobj
 
-  - name: remove /usr/xobj
-    file:
-      path: "{{ item }}"
-      state: absent
-    with_items:
-      - /usr/xobj
+    - name: Record CVS server ssh hostkey
+      become: true
+      become_user: srcfetch
 
-  - name: record CVS server ssh hostkey
-    block:
-      - file: state=touch path=/var/srcfetch/.ssh/known_hosts
-      - shell: ssh-keygen -R {{openbsd_anoncvs}} 2>/dev/null
-      - shell: ssh-keyscan {{openbsd_anoncvs}} 2>/dev/null >>/var/srcfetch/.ssh/known_hosts
-    become: true
-    become_user: srcfetch
+      block:
+        - ansible.builtin.file:
+            state: touch
+            path: /var/srcfetch/.ssh/known_hosts
+        - ansible.builtin.shell: ssh-keygen -R {{openbsd_anoncvs}} 2>/dev/null
+        - ansible.builtin.shell: ssh-keyscan {{openbsd_anoncvs}} 2>/dev/null >>/var/srcfetch/.ssh/known_hosts
+    - name: Checkout {{item}} from cvs
+      ansible.builtin.command: cvs -qd anoncvs@{{openbsd_anoncvs}}:/cvs get -P {{item}}
+      args:
+        chdir: /usr
+        creates: /usr/{{ item }}/CVS
+      with_items:
+        - src
+        - xenocara
+        - ports
+      become: true
+      become_user: srcfetch
 
-  - name: checkout {{item}} from cvs
-    command: cvs -qd anoncvs@{{openbsd_anoncvs}}:/cvs get -P {{item}}
-    args:
-      chdir: /usr
-      creates: /usr/{{item}}/CVS
-    with_items:
-      - src
-      - xenocara
-      - ports
-    become: true
-    become_user: srcfetch
-
-  - name: fix source permissions
-    file:
-      path: "{{ item.path }}"
-      owner: srcfetch
-      group: wsrc
-      mode: ug=rwX,o=rX
-      recurse: true
-    with_items:
-      - path: /usr/src
-      - path: /usr/xenocara
-      - path: /usr/ports
+    - name: Fix source permissions
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        owner: srcfetch
+        group: wsrc
+        mode: ug=rwX,o=rX
+        recurse: true
+      with_items:
+        - path: /usr/src
+        - path: /usr/xenocara
+        - path: /usr/ports

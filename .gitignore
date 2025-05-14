@@ -1,0 +1,9 @@
+/*.retry
+/iso/*.iso
+/output/obsd-build*
+/packer_httproot/install.conf
+/.venv
+/packages
+/crash.log
+/keys/root_pass
+/keys/obsd-build*
