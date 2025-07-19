@@ -5,7 +5,7 @@ UUID=$(uuidgen)
 MACPART='00:00:a6'
 
 virt-install \
-    --connect qemu+ssh://hro/system \
+    --connect qemu://system \
     --name ${NAME} \
     --metadata uuid=${UUID} \
     --memory 2048 \

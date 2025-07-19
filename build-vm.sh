@@ -5,7 +5,7 @@ MIRROR_HOST=${MIRROR_HOST:-https://ftp2.eu.openbsd.org}
 VERSION=${VERSION:-7.7}
 BRANCH=${BRANCH:-current}
 INSTALL_SOURCE=${INSTALL_SOURCE:-full}
-PUBKEY_PATH=./keys/obsd-build.pub 
+PUBKEY_PATH=./keys/obsd-build.pub
 RUN_TEST=0
 
 usage() {

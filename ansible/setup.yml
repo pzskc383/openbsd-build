@@ -1,32 +1,47 @@
 ---
-- hosts: obsd-build
+- name: Setup build machine
+  hosts: obsd-build
   gather_facts: false
   tasks:
     - name: Set installurl
-      ansible.builtin.raw: echo {{openbsd_mirror}}/pub/OpenBSD > /etc/installurl
+      ansible.builtin.raw: "echo {{ openbsd_mirror }}/pub/OpenBSD > /etc/installurl"
+      args:
+        creates: /etc/installurl
+
     - name: Install python
       ansible.builtin.raw: type python3 >/dev/null || pkg_add python%3
+      args:
+        creates: /usr/local/bin/python3
+
     - name: Install needed packages
-      ansible.builtin.raw: pkg_add {{item}}
-      with_items:
-        - vim--no_x11
-        - git
-        - mercurial
+      ansible.builtin.raw: pkg_add {{ item.pkg }}
+      args:
+        creates: "{{ item.bin }}"
+      loop:
+        - pkg: vim--no_x11
+          bin: /usr/local/bin/vim
+        - pkg: git
+          bin: /usr/local/bin/git
+        - pkg: mercurial
+          bin: /usr/local/bin/hg
 
     - name: Install system config files
       block:
-        - ansible.builtin.file:
+        - name: Create download dir
+          ansible.builtin.file:
             state: directory
             dest: /var/downloads
             mode: "0775"
-        - ansible.builtin.copy:
+
+        - name: "Install {{ item.dst }}"
+          ansible.builtin.copy:
             src: "{{ item.src }}"
             dest: "{{ item.dst }}"
             owner: root
             group: wheel
             mode: "0644"
             force: true
-          with_items:
+          loop:
             - src: files/mk.conf
               dst: /etc/mk.conf
             - src: files/man.conf
@@ -36,18 +51,20 @@
 
     - name: Install root's config files
       block:
-        - ansible.builtin.blockinfile:
+        - name: Fix root .profile
+          ansible.builtin.blockinfile:
             insertafter: EOF
             path: /root/.profile
             content: "{{ lookup('file', 'files/root-profile.snip') }}"
-        - ansible.builtin.copy:
+        - name: Install other root configs
+          ansible.builtin.copy:
             src: "{{ item.src }}"
             dest: "{{ item.dst }}"
             owner: root
             group: wheel
             mode: "0600"
             force: true
-          with_items:
+          loop:
             - src: files/root-kshrc
               dst: /root/.kshrc
             - src: files/root-vimrc
@@ -61,7 +78,7 @@
         state: directory
         owner: build
         mode: "0700"
-      with_items:
+      loop:
         - /dest
         - /var/dest
         - /var/dest/base
@@ -142,7 +159,7 @@
         owner: build
         group: wobj
         mode: "0770"
-      with_items:
+      loop:
         - bsd
         - x11
 
@@ -153,7 +170,7 @@
         owner: _pbuild
         group: _pbuild
         mode: "0775"
-      with_items:
+      loop:
         - ports
         - ports.bulk
         - ports.update
@@ -166,7 +183,7 @@
         owner: "{{ item.owner }}"
         group: _dpb
         mode: "{{ item.mode | default('0770') }}"
-      with_items:
+      loop:
         - path: /var/ports
           owner: _pbuild
           mode: "0775"
@@ -195,37 +212,34 @@
         mode: "0755"
 
     - name: Create directories for sources
-      block:
-        - ansible.builtin.file:
-            path: "{{ item.path }}"
-            state: directory
-            owner: srcfetch
-            group: wsrc
-            mode: "0775"
-          with_items:
-            - path: /usr/src
-            - path: /usr/xenocara
-            - path: /usr/ports
-            - path: /usr/local/ports
-            - path: /usr/local/ports/gh-wip
-            - path: /usr/local/ports/my
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: directory
+        owner: srcfetch
+        group: wsrc
+        mode: "0775"
+      loop:
+        - path: /usr/src
+        - path: /usr/xenocara
+        - path: /usr/ports
+        - path: /usr/local/ports
+        - path: /usr/local/ports/gh-wip
+        - path: /usr/local/ports/my
 
     - name: Checkout git ports repos
       become: true
       become_user: srcfetch
 
       block:
-        - ansible.builtin.git:
-            dest: /usr/local/ports/gh-wip
-            repo: https://github.com/jasperla/openbsd-wip
-        - ansible.builtin.git:
+        - name: Install my ports tree # noqa: latest
+          ansible.builtin.git:
             dest: /usr/local/ports/my
             repo: https://pzskc383.dp.ua/code/openbsd-ports
     - name: Remove /usr/xobj
       ansible.builtin.file:
         path: "{{ item }}"
         state: absent
-      with_items:
+      loop:
         - /usr/xobj
 
     - name: Record CVS server ssh hostkey
@@ -233,22 +247,33 @@
       become_user: srcfetch
 
       block:
-        - ansible.builtin.file:
+        - name: Create known_hosts
+          ansible.builtin.file:
             state: touch
             path: /var/srcfetch/.ssh/known_hosts
-        - ansible.builtin.shell: ssh-keygen -R {{openbsd_anoncvs}} 2>/dev/null
-        - ansible.builtin.shell: ssh-keyscan {{openbsd_anoncvs}} 2>/dev/null >>/var/srcfetch/.ssh/known_hosts
-    - name: Checkout {{item}} from cvs
-      ansible.builtin.command: cvs -qd anoncvs@{{openbsd_anoncvs}}:/cvs get -P {{item}}
+            owner: "srcfetch"
+            mode: "0644"
+
+        - name: Cleanup known_hosts
+          ansible.builtin.shell: ssh-keygen -R {{ openbsd_anoncvs }} 2>/dev/null
+          changed_when: true
+
+        - name: Record cvs hostkey in known_hosts
+          ansible.builtin.shell: ssh-keyscan {{ openbsd_anoncvs }} 2>/dev/null >>/var/srcfetch/.ssh/known_hosts
+          changed_when: true
+
+    - name: "CVS checkout: {{ item }}"
+      ansible.builtin.command: cvs -qd anoncvs@{{ openbsd_anoncvs }}:/cvs get -P {{ item }}
       args:
         chdir: /usr
         creates: /usr/{{ item }}/CVS
-      with_items:
+      loop:
         - src
         - xenocara
         - ports
       become: true
       become_user: srcfetch
+      changed_when: true
 
     - name: Fix source permissions
       ansible.builtin.file:
@@ -257,7 +282,7 @@
         group: wsrc
         mode: ug=rwX,o=rX
         recurse: true
-      with_items:
+      loop:
         - path: /usr/src
         - path: /usr/xenocara
         - path: /usr/ports

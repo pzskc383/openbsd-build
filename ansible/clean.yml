@@ -1,11 +1,16 @@
 ---
-- hosts: obsd-build
+- name: Cleanup machine
+  hosts: obsd-build
   gather_facts: true
   tasks:
     - name: Mount /usr/src ramdisk
       ansible.builtin.shell: umount /usr/src &&  mount_mfs -P/dev/sd0f -s1G -onosuid,nodev,rw swap /usr/src
+      changed_when: true
+
     - name: Mount /usr/xenocara ramdisk
       ansible.builtin.shell: umount /usr/xenocara &&  mount_mfs -P/dev/sd0g -s1G -onosuid,nodev,rw swap /usr/xenocara
+      changed_when: true
+
     - name: Umount obj
       ansible.posix.mount:
         path: /usr/obj
@@ -13,26 +18,32 @@
 
     - name: Format /usr/obj
       ansible.builtin.command: newfs -g67000 -h16 -otime /dev/rsd0h
-    - name: Mount obj
+      changed_when: true
+
+    - name: Mount obj # noqa command-instead-of-module
       ansible.builtin.command: mount /usr/obj
+      changed_when: true
+
     - name: Create /usr/obj directories
       block:
-        - ansible.builtin.file:
+        - name: "Creating /usr/obj directory: {{ item }}"
+          ansible.builtin.file:
             path: /usr/obj/{{ item }}
             state: directory
             owner: build
             group: wobj
             mode: "0770"
-          with_items:
+          loop:
             - bsd
             - x11
-        - ansible.builtin.file:
+        - name: "Creating ports configs: {{ item }}"
+          ansible.builtin.file:
             path: /usr/obj/{{ item }}
             state: directory
             owner: _pbuild
             group: wobj
             mode: "0775"
-          with_items:
+          loop:
             - ports
             - ports.bulk
             - ports.update
@@ -40,3 +51,4 @@
 
     - name: Mount mfs for /usr/obj
       ansible.builtin.shell: umount /usr/obj &&  mount_mfs -P/dev/sd0h -s4G -onosuid,nodev,rw,exec swap /usr/obj
+      changed_when: true

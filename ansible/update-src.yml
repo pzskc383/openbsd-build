@@ -1,30 +1,33 @@
 ---
-- hosts: obsd-build
+- name: Update sources
+  hosts: obsd-build
   tasks:
     - name: Fix mounts
       ansible.builtin.shell: umount /usr/src && mount /usr/src && umount /usr/xenocara && mount /usr/xenocara
-    - name: Update /usr/{{item}} from cvs
-      ansible.builtin.command: cvs -qd anoncvs@{{openbsd_anoncvs}}:/cvs up -Pd
+      changed_when: false
+
+    - name: "CVS update: {{ item }}"
+      ansible.builtin.command: cvs -qd anoncvs@{{ openbsd_anoncvs }}:/cvs up -Pd
       args:
         chdir: /usr/{{ item }}
-      with_items:
+      loop:
         - src
         - xenocara
         - ports
       become: true
       become_user: srcfetch
+      changed_when: true
 
     - name: Checkout git ports repos
       become: true
       become_user: srcfetch
 
       block:
-        - ansible.builtin.git:
-            dest: /usr/local/ports/gh-wip
-            repo: https://github.com/jasperla/openbsd-wip
-        - ansible.builtin.git:
+        - name: Install my ports tree # noqa: latest
+          ansible.builtin.git:
             dest: /usr/local/ports/my
             repo: https://pzskc383.dp.ua/code/openbsd-ports
+
     - name: Fix permissions
       ansible.builtin.file:
         path: "{{ item }}"
@@ -32,7 +35,7 @@
         group: wsrc
         mode: u=grwX,o=rX
         recurse: true
-      with_items:
+      loop:
         - /usr/src
         - /usr/xenocara
         - /usr/ports

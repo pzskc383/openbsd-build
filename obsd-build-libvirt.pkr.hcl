@@ -79,7 +79,7 @@ source "libvirt" "virt_machine" {
 
   network_interface {
     type    = "managed"
-    network = "bsd"
+    network = "default"
     alias   = "communicator"
     model   = "virtio"
   }

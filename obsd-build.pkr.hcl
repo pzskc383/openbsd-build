@@ -56,7 +56,7 @@ source "qemu" "virt_machine" {
 
   communicator         = "ssh"
   ssh_username         = "root"
-  ssh_private_key_file = "${path.root}/keys/obsd-build-access"
+  ssh_private_key_file = "${path.root}/keys/obsd-build"
   # qemuargs = [
   #   [ "-netdev", "user,hostfwd=tcp::{{ .SSHHostPort }}-:22,id=forward"],
   #   [ "-device", "virtio-net,netdev=forward,id=net0"]
