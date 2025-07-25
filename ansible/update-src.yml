@@ -18,15 +18,14 @@
       become_user: srcfetch
       changed_when: true
 
-    - name: Checkout git ports repos
-      become: true
-      become_user: srcfetch
-
-      block:
-        - name: Install my ports tree # noqa: latest
-          ansible.builtin.git:
-            dest: /usr/local/ports/my
-            repo: https://pzskc383.dp.ua/code/openbsd-ports
+    # - name: Checkout git ports repos
+    #   become: true
+    #   become_user: srcfetch
+    #   block:
+    #     - name: Install my ports tree # noqa: latest
+    #       ansible.builtin.git:
+    #         dest: /usr/local/ports/my
+    #         repo: https://pzskc383.net/code/openbsd-ports
 
     - name: Fix permissions
       ansible.builtin.file:

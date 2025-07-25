@@ -37,15 +37,15 @@
       args:
         cmd: make install >/dev/null
         chdir: /sys/arch/amd64/compile/GENERIC.MP
-      when: kerneldiffcheck | failed
-      changed_when: true
+      register: kernelinstall
+      when: kerneldiffcheck.rc != 0
+      changed_when: kernelinstall.rc == 0
 
     - name: Reboot machine
       ansible.builtin.shell:
       args:
         cmd: (sleep 5 && reboot) &
-        ignore_errors: true
-      when: kerneldiffcheck | failed
+      when: kerneldiffcheck.rc != 0
       changed_when: true
 
     - name: Wait for it
@@ -53,7 +53,7 @@
         delay: 60
         timeout: 900
       delegate_to: localhost
-      when: kerneldiffcheck | failed
+      when: kerneldiffcheck.rc != 0
 
     # - name: Mount /usr/src ramdisk
     #   ansible.builtin.shell: umount /usr/src &&  mount_mfs -P/dev/sd0f -s1G -onosuid,noperm,nodev,rw swap /usr/src
@@ -73,7 +73,7 @@
     - name: Check if any files need merging
       ansible.builtin.command:
         cmd: sysmerge -b
-      changed_when: sysmergecheck | not failed
+      changed_when: sysmergecheck.rc == 0
       register: sysmergecheck
       ignore_errors: true
 
@@ -90,20 +90,18 @@
 
     - name: Make base release
       ansible.builtin.shell:
-        cmd: make release >/dev/null
+        cmd: |-
+          make RELEASEDIR=/var/release DESTDIR=/dest/base release >/dev/null
         chdir: /usr/src/etc
-        environment:
-          RELEASEDIR: /var/release
-          DESTDIR: /dest/base
       changed_when: true
 
     - name: Check file list # noqa command-instead-of-shell
       ansible.builtin.shell:
-        cmd: /bin/sh checkflist
+        cmd: |-
+          RELEASEDIR=/var/release
+          DESTDIR=/dest/base
+          /bin/sh checkflist
         chdir: /usr/src/distrib/sets
-        environment:
-          RELEASEDIR: /var/release
-          DESTDIR: /dest/base
       changed_when: true
 
     # - name: Mount /usr/xenocara ramdisk

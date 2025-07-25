@@ -1,3 +1,4 @@
+/.ansible
 /*.retry
 /iso/*.iso
 /output/obsd-build*

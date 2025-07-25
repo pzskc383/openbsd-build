@@ -36,7 +36,7 @@ while getopts "m:k:v:b:i:t" opt "$@"; do
     b)
       BRANCH="${OPTARG}"
       case $BRANCH in release|current) ;; *)
-        echo wrong branc, must be release or current
+        echo wrong branch, must be release or current
         usage; ;;
       esac
       ;;
