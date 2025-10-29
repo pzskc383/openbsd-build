@@ -1,5 +1,7 @@
 #!/bin/sh
 
+set -e -u
+
 # settings
 MIRROR_HOST=${MIRROR_HOST:-https://ftp2.eu.openbsd.org}
 VERSION=${VERSION:-7.7}
@@ -79,9 +81,9 @@ ROOT_PASSWORD=$(tr -dc ',-:@-Z^-{' </dev/urandom |head -c 14)
 
 if ! [ -r "$PUBKEY_PATH" ]; then
   echo generating ssh pubkey
-  ssh-keygen -q -f "$(echo $PUBKEY_PATH|sed s/.pub//)" -C obsd-build-dyn -t ed25519
+  ssh-keygen -q -f "${PUBKEY_PATH%.pub}" -C obsd-build-dyn -t ed25519
 fi
-SSH_PUBKEY="$(cat $PUBKEY_PATH)"
+SSH_PUBKEY="$(cat "$PUBKEY_PATH")"
 
 echo generating answers file.
 eval "echo \"$(cat ./packer_httproot/install.tpl.sh )\"" \
@@ -109,20 +111,24 @@ export PACKER_DEBUG= #-debug
 export PACKER_LIBVIRT_STREAM_CONSOLE=1
 
 export PKR_VAR_mirror_base="${MIRROR_HOST}/${MIRROR_BASE}"
+export PKR_VAR_mirror_host="${MIRROR_HOST}"
 export PKR_VAR_install_img="${INSTALL_IMG_NAME}"
 export PKR_VAR_root_password="${ROOT_PASSWORD}"
 
 templatefile=obsd-build.pkr.hcl
 
-echo Build start : $(date)
-packer validate $templatefile && \
-packer build ${PACKER_DEBUG}  $templatefile
+echo Build start : "$(date)"
+packer validate $templatefile 
 
+# shellcheck disable=SC2086
+packer build ${PACKER_DEBUG}  "$templatefile"
+
+# shellcheck disable=SC2181
 if [ $? -eq 0 ]; then
   mv ./output/obsd-build ./output/obsd-build.qcow2
   echo build successful.
   printf "root password: '%s'\n" "$ROOT_PASSWORD"
 
   rm -f ./keys/root_pass
-  printf "$ROOT_PASSWORD" > ./keys/root_pass
+  printf '%s' "$ROOT_PASSWORD" > ./keys/root_pass
 fi
