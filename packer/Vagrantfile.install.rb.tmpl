@@ -1,0 +1,53 @@
+Vagrant.require_version '>= 1.1.0'
+
+Vagrant.configure(2) do |config|
+  config.ssh.shell = 'sh'
+  config.ssh.sudo_command = 'doas %c'
+
+  config.vm.define "source", autostart: false do |source|
+    source.vm.box = "{{.SourceBox}}"
+    config.ssh.insert_key = {{.InsertKey}}
+  end
+
+  config.vm.define "output" do |output|
+    output.vm.box = "{{.BoxName}}"
+    output.vm.box_url = "file://package.box"
+    config.ssh.insert_key = {{.InsertKey}}
+
+    {{ if ne .SyncedFolder "" -}}
+      output.vm.synced_folder "{{.SyncedFolder}}", "/vagrant", type: "nfs"
+    {{- else -}}
+      output.vm.synced_folder ".", "/vagrant", disabled: true
+    {{- end }}
+
+    output.vm.disk :disk, size: "10GB", primary: true
+
+    # output.vm.network :private_network,
+    #   :libvirt__network_name => 'default',
+    #   :libvirt__always_destroy => false
+
+    output.vm.provider :libvirt do |libvirt|
+      libvirt.default_prefix = ''
+      libvirt.mgmt_attach = false
+
+      libvirt.cpu_mode = "host-model"
+      libvirt.driver = "kvm"
+      libvirt.machine_type = 'q35'
+
+      libvirt.disk_bus = 'virtio'
+      libvirt.serial :type => 'pty'
+      libvirt.disk_driver :cache => 'none', :io => 'native'
+
+      libvirt.memballoon_enabled = false
+
+      # libvirt.channel :type => 'unix', :target_name => 'org.qemu.guest_agent.0', :target_type => 'isa'
+
+      libvirt.clock_timer :name => 'rtc', :tickpolicy => 'catchup'
+      libvirt.clock_timer :name => 'pit', :tickpolicy => 'delay'
+      libvirt.clock_timer :name => 'hpet', :present => 'yes'
+      libvirt.clock_timer :name => 'kvmclock', :present => 'yes'
+
+      libvirt.features = ['acpi', 'apic', 'pae', 'vmport state=off' ]
+    end
+  end
+end

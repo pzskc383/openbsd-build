@@ -1,10 +1,16 @@
 /.ansible
 /*.retry
 /iso/*.iso
-/output/obsd-build*
+/output/*
+/packer_httproot/*
 /packer_httproot/install.conf
 /.venv
 /packages
 /crash.log
 /keys/root_pass
 /keys/obsd-build*
+/packer/*.box
+/packer/*.box.sha256sum
+/packer/installdata/*
+/packer/libvirt-empty/output/
+**/*.box
