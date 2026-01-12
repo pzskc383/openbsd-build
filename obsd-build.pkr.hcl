@@ -14,7 +14,13 @@ packer {
 variable "obsd_arch" {
   type        = string
   default     = "amd64"
-  description = "Architecture"
+  description = "Architecture (amd64|arm64)"
+}
+
+variable "obsd_version" {
+  type        = string
+  default     = "7.8"
+  description = "OpenBSD release version"
 }
 
 variable "obsd_set_list" {
@@ -23,11 +29,6 @@ variable "obsd_set_list" {
   default     = "full"
 }
 
-variable "obsd_cd_image" {
-  type        = string
-  description = "name of cd image"
-  default     = "cd78.iso"
-}
 
 variable "disk_size_gb" {
   type    = number
@@ -45,16 +46,34 @@ locals {
   disklabelfile   = "${path.root}/packer/disklabel.${var.obsd_set_list}.txt"
   box_name        = "openbsd-${var.obsd_arch}-${var.obsd_set_list}"
 
-  checksum_parts = [for l in split("\n", file("${local.install_datadir}/SHA256")) : split(" ", l)[3] if strcontains(l, var.obsd_cd_image)]
+  obsd_short_version = replace(var.obsd_version, ".", "")
+  obsd_cd_image      = "cd${local.obsd_short_version}.iso"
+
+  qemu_binary  = var.obsd_arch == "amd64" ? "qemu-system-x86_64" : "qemu-system-aarch64"
+  qemu_machine = var.obsd_arch == "amd64" ? "q35" : "virt"
+  qemu_accel   = var.obsd_arch == "amd64" ? "kvm" : "none"
+
+  arm64_efi_code = "/usr/share/edk2/aarch64/QEMU_EFI.fd"
+  arm64_efi_vars = "/usr/share/edk2/aarch64/QEMU_VARS.fd"
+  amd64_efi_code = "/usr/share/OVMF/OVMF_CODE.fd"
+  amd64_efi_vars = "/usr/share/OVMF/OVMF_VARS.fd"
+
+  qemu_efi_code   = var.obsd_arch == "amd64" ? local.amd64_efi_code : local.arm64_efi_code
+  qemu_efi_vars   = var.obsd_arch == "amd64" ? local.amd64_efi_vars : local.arm64_efi_vars
+  qemu_use_pflash = var.obsd_arch == "amd64" ? true : false
+
+
+
+  checksum_parts = [for l in split("\n", file("${local.install_datadir}/SHA256")) : split(" ", l)[3] if strcontains(l, local.obsd_cd_image)]
   iso_checksum   = local.checksum_parts[0]
 
   register_box_cmd = <<-EOF
   #!/bin/sh
+  set -x
   echo registering box ${local.box_name}
-  vagrant box add -a ${var.obsd_arch}  \\
-    --provider libvirt  \\
-    --box-version ${var.box_version}  \\
-    --name ${local.box_name}  \\
+  vagrant box add -a ${var.obsd_arch}  \
+    --provider libvirt  \
+    --name ${local.box_name}  \
     ./output/${local.box_name}.box
   EOF
 
@@ -88,11 +107,19 @@ source "file" "disklabel" {
 source "qemu" "virt_machine" {
   vm_name = local.box_name
 
-  accelerator    = "kvm"
-  efi_boot       = true
+  qemu_binary  = local.qemu_binary
+  machine_type = local.qemu_machine
+  accelerator  = local.qemu_accel
+
+  efi_boot         = true
+  efi_drop_efivars = true
+
+  efi_firmware_code = local.qemu_efi_code
+  efi_firmware_vars = local.qemu_efi_vars
+  use_pflash        = false
+
   disk_interface = "virtio"
   cpus           = 2
-  machine_type   = "q35"
   memory         = "1024"
 
   disk_size        = "${var.disk_size_gb}G"
@@ -118,12 +145,11 @@ source "qemu" "virt_machine" {
   http_directory = local.http_datadir
 
   headless = true
-  vga      = "virtio"
 
   vnc_port_max = 5923
   vnc_port_min = 5923
 
-  iso_url      = "file://${abspath(local.install_datadir)}/${var.obsd_cd_image}"
+  iso_url      = "file://${abspath(local.install_datadir)}/${local.obsd_cd_image}"
   iso_checksum = "sha256:${local.iso_checksum}"
 
   output_directory = "output"
@@ -145,9 +171,9 @@ build {
     "source.qemu.virt_machine",
   ]
   post-processors {
-    post-processor "artifice" {
-      files = ["./output/${local.box_name}"]
-    }
+    // post-processor "artifice" {
+    //   files = ["./output/${local.box_name}"]
+    // }
     post-processor "vagrant" {
       architecture         = var.obsd_arch
       keep_input_artifact  = true
@@ -155,12 +181,12 @@ build {
       vagrantfile_template = "${path.root}/packer/Vagrantfile.base.rb"
       output               = "./output/${local.box_name}.box"
     }
-    // post-processor "shell-local" {
-    //   inline = [local.register_box_cmd]
-    // }
-    post-processor "artifice" {
-      files = ["./output/${local.box_name}.box"]
+    post-processor "shell-local" {
+      inline = [local.register_box_cmd]
     }
+    // post-processor "artifice" {
+    //   files = ["./output/${local.box_name}.box"]
+    // }
     # post-processor "vagrant-cloud" {
     #   access_token = "${var.cloud_token}"
     #   box_tag      = "pzskc383/mybox"

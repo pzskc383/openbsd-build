@@ -119,12 +119,12 @@ echo running packer.
 export CHECKPOINT_DISABLE=1 # don't phone home
 [ -t 1 ] || { PACKER_NO_COLOR=1; export PACKER_NO_COLOR; }
 
-export PACKER_LOG=0
+export PACKER_LOG=1
 export PACKER_DEBUG= #-debug
 export PACKER_LIBVIRT_STREAM_CONSOLE=1
 
 export PKR_VAR_obsd_arch="${ARCH}"
-export PKR_VAR_obsd_cd_image="${INSTALL_IMG_NAME}"
+export PKR_VAR_obsd_version="${VERSION}"
 export PKR_VAR_obsd_set_list="${SET_LIST}"
 
 
