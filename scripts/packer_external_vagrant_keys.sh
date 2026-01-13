@@ -3,7 +3,7 @@ set -e -u
 
 VAGRANT_VERSION_TAG=v2.4.9
 get_key() {
-    wget -c "https://github.com/hashicorp/vagrant/raw/refs/tags/${VAGRANT_VERSION_TAG}/keys/vagrant.${1}"
+    wget -qc "https://github.com/hashicorp/vagrant/raw/refs/tags/${VAGRANT_VERSION_TAG}/keys/${1}"
 }
 
 if [ "$#" -ne 1 ]; then

@@ -1,29 +1,9 @@
-variable "obsd_arch" {
-  type        = string
-  description = "Architecture (amd64|arm64)"
-
-  validation {
-    condition     = (var.obsd_arch == "amd64" || var.obsd_arch == "arm64")
-    error_message = "Valid arches: amd64 arm64."
-  }
-}
-
 variable "obsd_version" {
   type        = string
   description = "OpenBSD release version"
   validation {
     condition     = can(regex("[0-9]+.[0-9]+", var.obsd_version))
     error_message = "Variable obsd_version should be formatted as X.Y."
-  }
-}
-
-variable "img_variant" {
-  type        = string
-  description = "Image variant to build"
-
-  validation {
-    condition     = contains(["base", "nox", "full", "ports", "src", "cloud"], var.img_variant)
-    error_message = "Valid variants: base nox full ports src cloud."
   }
 }
 
@@ -65,6 +45,16 @@ variable "packer_dir_http" {
 variable "packer_dir_vagrantkeys" {
   type        = string
   description = "Directory for base vagrant keys"
+}
+
+variable "packer_dir_templates" {
+  type        = string
+  description = "Directory for templates"
+}
+
+variable "packer_dir_scripts" {
+  type        = string
+  description = "Directory for scripts"
 }
 
 variable "packer_dir_output_qemu" {

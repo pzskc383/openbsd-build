@@ -21,7 +21,6 @@ download() {
   url="$1"
   target="$2"
   wget -q -O "${target}" -c -t 0 "${url}"
-  # curl -L -o"${target}" -C - "${url}"
 }
 
 check_sha() {

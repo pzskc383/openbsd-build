@@ -1,16 +1,10 @@
 source "qemu" "openbsd" {
-  qemu_binary  = local.qemu_binary
-  machine_type = local.qemu_machine
-  accelerator  = local.qemu_accel
+  efi_boot         = var.qemu_use_uefi
+  efi_drop_efivars = true
+  use_pflash       = false
 
-  efi_boot          = true
-  efi_drop_efivars  = true
-  efi_firmware_code = var.obsd_arch == "amd64" ? "/usr/share/OVMF/OVMF_CODE.fd" : "/usr/share/edk2/aarch64/QEMU_EFI.fd"
-  efi_firmware_vars = var.obsd_arch == "amd64" ? "/usr/share/OVMF/OVMF_VARS.fd" : "/usr/share/edk2/aarch64/QEMU_VARS.fd"
-  use_pflash        = false
-
-  output_directory = var.packer_dir_output_qemu
-  http_directory   = var.packer_dir_http
+  output_directory = local.dir_output_qemu
+  http_directory   = local.dir_http
 
   iso_url      = "file://${abspath(local.dir_installmirror)}/${local.iso_filename}"
   iso_checksum = "sha256:${local.iso_checksum}"
@@ -28,9 +22,9 @@ source "qemu" "openbsd" {
   ssh_username         = "root"
   ssh_private_key_file = local.image_root_sshprivkey
 
-  headless     = true
-  vnc_port_max = 5923
-  vnc_port_min = 5923
+  headless = true
+  #vnc_port_min = 5923
+  #vnc_port_max = 5923
 
   boot_command = [
     "s<enter><wait2s>",
@@ -48,16 +42,64 @@ build {
   name = "qemu-openbsd"
 
   dynamic "source" {
-    for_each = local.definitions.variants
+    for_each = local.builder_variants
     labels   = ["source.qemu.openbsd"]
 
     content {
-      name    = source.key
-      vm_name = "${local.image_basename}${source.value.suffix}"
+      name              = source.key
+      vm_name           = "${local.image_basename}${source.value.suffix}"
+      efi_firmware_code = source.value.efi_code
+      efi_firmware_vars = source.value.efi_vars
+      qemu_binary       = source.value.qemu_binary
+      machine_type      = source.value.qemu_machine
+      accelerator       = source.value.qemu_accel
     }
   }
 
-  #sources = ["qemu.openbsd"]
+  provisioner "shell" {
+    name   = "syspatch"
+    script = "${local.dir_scripts}/image_syspatch.sh"
+  }
+
+  provisioner "shell" {
+    name   = "doas"
+    script = "${local.dir_scripts}/image_doas.sh"
+  }
+
+  provisioner "shell" {
+    name   = "builder"
+    script = "${local.dir_scripts}/image_builder.sh"
+    only   = ["source.qemu.src", "source.qemu.ports"]
+  }
+
+  provisioner "shell" {
+    name   = "src"
+    script = "${local.dir_scripts}/image_source.sh"
+    only   = ["source.qemu.src"]
+  }
+
+  provisioner "shell" {
+    name   = "ports"
+    script = "${local.dir_scripts}/image_ports.sh"
+    only   = ["source.qemu.src", "source.qemu.ports"]
+  }
+
+  provisioner "shell" {
+    name   = "cloud_init"
+    script = "${local.dir_scripts}/image_cloud_init.sh"
+    only   = ["source.qemu.cloud"]
+  }
+
+  provisioner "shell" {
+    name   = "sysprep"
+    script = "${local.dir_scripts}/image_sysprep.sh"
+  }
+
+  provisioner "shell" {
+    name   = "installurl"
+    script = "${local.dir_scripts}/image_installurl.sh"
+  }
+
 
 
   post-processors {
@@ -66,8 +108,8 @@ build {
       keep_input_artifact  = true
       compression_level    = 9
       provider_override    = "libvirt"
-      vagrantfile_template = "${path.root}/templates/Vagrantfile.base.rb"
-      output               = "./output/vagrant/${local.box_name}.box"
+      vagrantfile_template = "${local.dir_templates}/Vagrantfile.base.rb"
+      output               = "${local.dir_output_vagrant}/${source.name}.box"
     }
 
     // post-processor "shell-local" {

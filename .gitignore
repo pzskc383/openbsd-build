@@ -1,7 +1,7 @@
 /output/*
 /packer_httproot/*
+/packer_vagrantkeys/*
 /ftp_mirror/*
-/vagrant-keys/*
 /**/*.box
 /vagrant-tmp
 /AGENTS.md
