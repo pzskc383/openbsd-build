@@ -5,50 +5,38 @@ locals {
       nox  = "-* bsd bsd.rd bsd.mp base* man* comp* game*"
       full = "-* bsd bsd.rd bsd.mp base* man* comp* game* xbase* xfont* xshare* xserv*"
     }
-    provisioner_scripts = {
-      base  = ["syspatch", "doas", "installurl", "sysprep"]
-      src   = ["syspatch", "doas", "builder", "source", "installurl", "sysprep"]
-      ports = ["syspatch", "doas", "builder", "ports", "source", "installurl", "sysprep"]
-      cloud = ["syspatch", "doas", "installurl", "cloud_init", "sysprep"]
-    }
   }
 
   image_variants = {
     base = {
-      sets         = local.definitions.file_sets.base
-      provisioners = local.definitions.provisioner_scripts.base
-      disklabel    = "base"
-      suffix       = "-base"
+      sets      = local.definitions.file_sets.base
+      disklabel = "base"
+      suffix    = "-base"
     }
     nox = {
-      sets         = local.definitions.file_sets.nox
-      provisioners = local.definitions.provisioner_scripts.base
-      disklabel    = "base"
-      suffix       = "-nox"
+      sets      = local.definitions.file_sets.nox
+      disklabel = "base"
+      suffix    = "-nox"
     }
     full = {
-      sets         = local.definitions.file_sets.full
-      provisioners = local.definitions.provisioner_scripts.base
-      disklabel    = "base"
-      suffix       = ""
+      sets      = local.definitions.file_sets.full
+      disklabel = "base"
+      suffix    = ""
     }
     src = {
-      sets         = local.definitions.file_sets.full
-      provisioners = local.definitions.provisioner_scripts.src
-      disklabel    = "src"
-      suffix       = "-src"
+      sets      = local.definitions.file_sets.full
+      disklabel = "src"
+      suffix    = "-src"
     }
     ports = {
-      sets         = local.definitions.file_sets.full
-      provisioners = local.definitions.provisioner_scripts.ports
-      disklabel    = "ports"
-      suffix       = "-ports"
+      sets      = local.definitions.file_sets.full
+      disklabel = "ports"
+      suffix    = "-ports"
     }
     cloud = {
-      sets         = local.definitions.file_sets.nox
-      provisioners = local.definitions.provisioner_scripts.cloud
-      disklabel    = "cloud"
-      suffix       = "-cloud"
+      sets      = local.definitions.file_sets.nox
+      disklabel = "cloud"
+      suffix    = "-cloud"
     }
   }
 
@@ -85,31 +73,10 @@ locals {
   dir_scripts        = abspath("${path.root}/${var.packer_dir_scripts}")
   dir_output_qemu    = abspath("${path.root}/${var.packer_dir_output_qemu}")
   dir_output_vagrant = abspath("${path.root}/${var.packer_dir_output_vagrant}")
-
-  dir_installmirror = "${local.dir_http}/mirror/${var.obsd_version}/${var.obsd_arch}"
-
-  qemu_binary  = local.image_arches[var.obsd_arch].qemu_binary
-  qemu_machine = local.image_arches[var.obsd_arch].qemu_machine
-  qemu_accel   = local.image_arches[var.obsd_arch].qemu_accel
-
-  set_names = local.image_variants[var.img_variant].sets
-
-  disklabel_variant = local.image_variants[var.img_variant].disklabel
-  disklabel_file    = "${var.packer_dir_templates}/disklabel.${local.disklabel_variant}.txt"
+  dir_mirror         = abspath("${path.root}/${var.packer_dir_ftp_mirror}")
 
   iso_filename = "cd${local.short_version}.iso"
 
-  headless     = (var.img_variant == "base" || var.img_variant == "nox")
-  run_x        = local.headless ? "yes" : "no"
-  default_com0 = "no"
-
-  iso_checksum_parts = [
-    for l in split("\n", file("${local.dir_installmirror}/SHA256")) :
-    split(" ", l)[3] if strcontains(l, local.iso_filename)
-  ]
-  iso_checksum = local.iso_checksum_parts[0]
-
-  vagrant_default_key_private = data.external.vagrant_keys.result["ed25519_private"]
 
   image_user_name       = var.vagrant_box ? "vagrant" : "user"
   image_user_password   = var.vagrant_box ? "vagrant" : data.password.user.crypt

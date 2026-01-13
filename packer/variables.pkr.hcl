@@ -22,9 +22,14 @@ variable "qemu_use_uefi" {
   description = "Whether to use UEFI for booting (implies GPT disk partitioning)"
 }
 
+variable "qemu_memory" {
+  type        = number
+  description = "VM Memory amount"
+}
+
 variable "qemu_smp" {
   type        = number
-  description = "Number of CPUs for VM"
+  description = "VM CPU count"
 }
 
 variable "hcp_upload" {
@@ -34,7 +39,7 @@ variable "hcp_upload" {
 
 variable "vagrant_box" {
   type        = bool
-  description = "Build image for Vagrant"
+  description = "Build image for Vagrant?"
 }
 
 variable "packer_dir_http" {
@@ -65,4 +70,9 @@ variable "packer_dir_output_qemu" {
 variable "packer_dir_output_vagrant" {
   type        = string
   description = "Vagrant output dir"
+}
+
+variable "packer_dir_ftp_mirror" {
+  type        = string
+  description = "Directory containing mirrored OpenBSD files"
 }

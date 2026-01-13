@@ -1,8 +1,6 @@
 #!/bin/sh
 set -e -u
 
-set -x
-
 rm -rf \
      /etc/ssh/ssh_host* \
      /etc/random.seed \

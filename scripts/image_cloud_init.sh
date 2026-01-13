@@ -1,12 +1,6 @@
 #!/bin/sh
 set -e -u
 
-set -x
-
-if [ "${PACKER_SETUP_CLOUDINIT-0}" -eq 0 ]; then
-    exit 0
-fi
-
 CLOUD_INIT_VERSION=25.3
 
 pkg_add python%3

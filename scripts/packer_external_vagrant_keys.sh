@@ -26,7 +26,7 @@ cd "$output_dir" || {
 
 if [ -f ./sha256sum ]; then
     while read -r sum filename; do
-        if ! echo $sum $filename| sha256sum -c --status; then
+        if ! echo "$sum $filename"| sha256sum -c --status; then
             rm -f "$filename"
             get_key "$filename"
         fi
@@ -40,7 +40,7 @@ else
             fi
         done
     done
-    sha256sum vagrant.* > sha256sum
+    sha256sum vagrant.* > ./sha256sum
 fi
 
 

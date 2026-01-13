@@ -18,18 +18,38 @@ data "external" "vagrant_keys" {
   ]
 }
 
-data "external-raw" "disklabel" {
-  program = ["./scripts/packer_external_disklabel.sh"]
-  query   = local.disklabel_file
+locals {
+  httproot_input = join("\n", concat(
+    [
+      "config httproot ${local.dir_http}",
+      "config mirror ${local.dir_mirror}",
+      "config templates ${local.dir_templates}",
+      "config version ${var.obsd_version}",
+      "config ssh_pubkey ${local.image_root_sshpubkey}",
+    ],
+    flatten([
+      for tag, vars in local.builder_variants : [
+        "${tag} sets ${vars.sets}",
+        "${tag} disklabel ${vars.disklabel}",
+        "${tag} suffix ${vars.suffix}",
+      ]
+    ])
+  ))
+
+  httproot_lines = compact(split("\n", data.external-raw.httproot.result))
+  httproot_tags  = distinct([for line in local.httproot_lines : element(split(" ", line), 0)])
+  httproot_meta = {
+    for tag in local.httproot_tags :
+    tag => {
+      for line in local.httproot_lines :
+      element(split(" ", line), 1) => join(" ", slice(split(" ", line), 2, length(split(" ", line))))
+      if element(split(" ", line), 0) == tag
+    }
+  }
+
 }
 
-data "external-raw" "autoinstall" {
-  program = ["./scripts/packer_external_autoinstall.sh"]
-  query   = <<-EOF
-    ssh_public_key=${local.image_root_sshpubkey}
-    server_directory=mirror/${var.obsd_version}/${var.obsd_arch}
-    set_names=${local.set_names}
-    run_x=${local.run_x}
-    default_com0=${local.default_com0}
-  EOF
+data "external-raw" "httproot" {
+  program = ["./scripts/packer_external_httproot.sh"]
+  query   = local.httproot_input
 }

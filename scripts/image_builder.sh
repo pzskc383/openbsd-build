@@ -1,6 +1,5 @@
 #!/bin/sh
 set -e -u
-set -x
 
 usermod -G wsrc vagrant
 
