@@ -18,8 +18,8 @@ usage() {
   echo "[-V : verbose]"
   echo "img variants:"
   echo "base: base*.tgz and site*.tgz"
-  echo "no-x: base + comp games man"
-  echo "full (default): no-x + x- sets"
+  echo "nox: base + comp games man"
+  echo "full (default): nox + x- sets"
   echo "ports: full + ports tree"
   echo "src: ports + /usr/src + /usr/xenocara"
   echo "cloud: full + cloud-init on a single root partition"
@@ -48,7 +48,7 @@ while getopts "v:a:i:V" opt "$@"; do
     i)
       IMG_VARIANT="${OPTARG}"
       case $IMG_VARIANT in
-        base|no-x|full|ports|src|cloud) ;;
+        base|nox|full|ports|src|cloud) ;;
         *) usage; ;;
       esac
       ;;
@@ -89,12 +89,6 @@ cp -Rp \
   "${MIRROR_LOCAL}/syspatch/${VERSION}/${ARCH}"/* \
   "${HTTP_ROOT}/mirror/syspatch/${VERSION}/${ARCH}/"
 
-log "mirroring vagrant-keys"
-if ! [ -d "./vagrant-keys" ]; then
-  mkdir "./vagrant-keys"
-  ./scripts/packer_vagrant_keys.sh ./vagrant-keys
-fi
-
 ## HashiCorp Cloud upload
 # HCP_CLIENT_SECRET=$(pass vagrantcloud-sp|head -n1)
 # HCP_CLIENT_ID=$(pass vagrantcloud-sp |awk -F: '/client_id/{print $2}')
@@ -119,8 +113,8 @@ export PACKER_LOG PACKER_LIBVIRT_STREAM_CONSOLE
 
 PKR_VAR_obsd_arch="${ARCH}"
 PKR_VAR_obsd_version="${VERSION}"
-PKR_VAR_obsd_img_variant="${IMG_VARIANT}"
-export PKR_VAR_obsd_arch PKR_VAR_obsd_version PKR_VAR_obsd_img_variant
+PKR_VAR_img_variant="${IMG_VARIANT}"
+export PKR_VAR_obsd_arch PKR_VAR_obsd_version PKR_VAR_img_variant
 
 if [ -d "./output" ]; then
   log "cleaning output dir"
@@ -128,7 +122,6 @@ if [ -d "./output" ]; then
 fi
 
 log running packer.
-templatefile=obsd-build.pkr.hcl
 
-$packer_validate_cmd "$templatefile"
-$packer_build_cmd  "$templatefile"
+$packer_validate_cmd ./packer/
+$packer_build_cmd ./packer/

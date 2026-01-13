@@ -13,3 +13,5 @@ Packer script to build OpenBSD vagrant VMs
 https://github.com/ajacoutot/aws-openbsd
 
 https://codeberg.org/hugorodrigues/packer-aws-openbsd
+
+https://github.com/ivoronin/openbsd-cloudimg
