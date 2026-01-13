@@ -2,40 +2,34 @@
 
 set -e -u
 
-MIRROR_HOST=${MIRROR_HOST:-https://cdn.openbsd.org}
 VERSION=${VERSION:-7.8}
-BRANCH=${BRANCH:-release}
 ARCH=${ARCH:-amd64}
-SET_LIST=${SET_LIST:-base}
+IMG_VARIANT=${IMG_VARIANT:-full}
+
+log() {
+  echo "build-vm.sh: $*"
+}
 
 usage() {
-  echo "Usage: $0 [-m mirror ] [-a arch] [-s set_list]"
-  echo "[-v openbsd version ] [-b openbsd branch ]"
-  echo set lists:
+  echo "Usage: $0 [-a arch: amd64|arm64]"
+  echo "[-i img variant: see below]"
+  echo "[-v openbsd version: X.Y or 'current' ]"
+  echo "img variants:"
   echo "base: base*.tgz and site*.tgz"
   echo "no-x: base + comp games man"
   echo "full (default): no-x + x- sets"
   echo "ports: full + ports tree"
   echo "src: ports + /usr/src + /usr/xenocara"
+  echo "cloud: full + cloud-init on a single root partition"
   exit 2
 }
 
-while getopts "m:v:b:a:s:" opt "$@"; do
+while getopts "v:a:i:" opt "$@"; do
   case "$opt" in
-    m)
-      MIRROR_HOST="${OPTARG}"
-      ;;
     v)
       VERSION="${OPTARG}"
-      case $VERSION in *.*) ;; *)
+      case $VERSION in *.*|currrent) ;; *)
         echo "wrong version $VERSION"
-        usage; ;;
-      esac
-      ;;
-    b)
-      BRANCH="${OPTARG}"
-      case $BRANCH in release|current) ;; *)
-        echo "wrong branch, must be release or current"
         usage; ;;
       esac
       ;;
@@ -46,11 +40,11 @@ while getopts "m:v:b:a:s:" opt "$@"; do
         usage; ;;
       esac
       ;;
-    s)
-      SET_LIST="${OPTARG}"
-      case $SET_LIST in base|no-x|full|ports|src) ;; *)
-        echo "set lists: base|no-x|full|ports|src"
-        usage; ;;
+    i)
+      IMG_VARIANT="${OPTARG}"
+      case $IMG_VARIANT in
+        base|no-x|full|ports|src|cloud) ;;
+        *) usage; ;;
       esac
       ;;
     ?)
@@ -58,63 +52,47 @@ while getopts "m:v:b:a:s:" opt "$@"; do
   esac
 done
 
-SHORTVERSION="$(echo "$VERSION"|tr -d .)"
+MIRROR_LOCAL="./ftp_mirror"
+HTTP_ROOT="./packer_httproot"
 
-if [ "$BRANCH" = current ]; then
-  FTP_TAG=snapshots
-else
-  FTP_TAG=$VERSION
+log "mirroring files"
+./scripts/mirror.sh -a "${ARCH}" -v "${VERSION}" "${MIRROR_LOCAL}"
+
+log "re-creating packer httproot"
+rm -rf "${HTTP_ROOT}"
+mkdir -p "${HTTP_ROOT}"
+
+log "copying install script"
+cp ./scripts/server_install.sh "${HTTP_ROOT}"/i
+
+log "copying mirrored sources"
+mkdir -p "${HTTP_ROOT}/mirror/${VERSION}"
+cp -Rp \
+  "${MIRROR_LOCAL}/${VERSION}"/*.tar.gz \
+  "${MIRROR_LOCAL}/${VERSION}"/SHA256 "${MIRROR_LOCAL}/${VERSION}"/SHA256.sig \
+  "${HTTP_ROOT}/mirror/${VERSION}/"
+
+log "copying mirrored sets"
+mkdir -p "${HTTP_ROOT}/mirror/${VERSION}/${ARCH}"
+cp -Rp \
+  "${MIRROR_LOCAL}/${VERSION}/${ARCH}"/* \
+  "${HTTP_ROOT}/mirror/${VERSION}/${ARCH}/"
+
+log "copying mirrored patches"
+mkdir -p "${HTTP_ROOT}/mirror/syspatch/${VERSION}/${ARCH}"
+cp -Rp \
+  "${MIRROR_LOCAL}/syspatch/${VERSION}/${ARCH}"/* \
+  "${HTTP_ROOT}/mirror/syspatch/${VERSION}/${ARCH}/"
+
+log "fetching vagrant-keys"
+if ! [ -d "./vagrant-keys" ]; then
+  mkdir "./vagrant-keys"
+  ./scripts/vagrant_keys.sh ./vagrant-keys
 fi
 
-INSTALL_IMG_NAME="cd${SHORTVERSION}.iso"
-MIRROR_BASE="pub/OpenBSD/${FTP_TAG}"
-
-cp packer/install.sh packer_httproot/i
-mkdir -p packer_httproot/mirror/source
-(
-  cd packer_httproot/mirror/source
-  for s in src sys xenocara ports; do
-    test -f "${s}.tar.gz" || \
-      { wget -c "$MIRROR_HOST/$MIRROR_BASE/${s}.tar.gz"; sleep 2; }
-  done
-)
-mkdir -p "packer_httproot/mirror/${ARCH}"
-(
-  cd "packer_httproot/mirror/${ARCH}"
-  for s in bsd bsd.rd bsd.mp ${INSTALL_IMG_NAME} "INSTALL.${ARCH}" SHA256; do
-    test -f "${s}" || \
-      { wget -c "$MIRROR_HOST/$MIRROR_BASE/${ARCH}/${s}"; sleep 2; }
-  done
-  for s in base comp game man xbase xfont xserv xshare; do
-    test -f "${s}${SHORTVERSION}.tgz" || \
-      { wget -c "$MIRROR_HOST/$MIRROR_BASE/${ARCH}/${s}${SHORTVERSION}.tgz"; sleep 2; }
-  done
-  mv SHA256 SHA256.orig; sort -u < SHA256.orig > SHA256; rm SHA256.orig
-  install_site=../../../packer_site/install.site
-  # echo "#!/bin/sh" > "$install_site"
-  # echo "set -e -u" >> "$install_site"
-  # echo "pkg_add rsync" >> "$install_site"
-  # echo "echo \"$(head -n1 ../../../packer/vagrant-keys/vagrant.pub.ed25519)\" >> /root/.ssh/authorized_keys" \
-  #   >> "$install_site"
-  chmod 0700 "$install_site"
-  bsdtar -c --uid 0 --gid 0 -C  ../../../packer_site/ -f - ./|gzip > "site${SHORTVERSION}.tgz"
-  ls -lt > index.txt
-)
-
-
-if [ -d ./output ]; then
-  echo cleaning old output.
-  rm -rf ./output
-fi
-
-if ! [ -d ./iso ]; then
-  echo creating iso directory.
-  mkdir -p ./iso
-fi
-
-
-
-echo running packer.
+# HCP_CLIENT_SECRET=$(pass vagrantcloud-sp|head -n1)
+# HCP_CLIENT_ID=$(pass vagrantcloud-sp |awk -F: '/client_id/{print $2}')
+# export HCP_CLIENT_ID HCP_CLIENT_SECRET
 
 export CHECKPOINT_DISABLE=1 # don't phone home
 [ -t 1 ] || { PACKER_NO_COLOR=1; export PACKER_NO_COLOR; }
@@ -125,17 +103,14 @@ export PACKER_LIBVIRT_STREAM_CONSOLE=1
 
 export PKR_VAR_obsd_arch="${ARCH}"
 export PKR_VAR_obsd_version="${VERSION}"
-export PKR_VAR_obsd_set_list="${SET_LIST}"
+export PKR_VAR_obsd_img_variant="${IMG_VARIANT}"
 
-
-templatefile=obsd-build.pkr.hcl
-
-echo "Build start : $(date)"
-packer validate "$templatefile" && \
-packer build ${PACKER_DEBUG}  "$templatefile"
-
-if [ $? -eq 0 ]; then
-  mv ./output/obsd-build ./output/obsd-build.qcow2
-  echo build successful.
-
+if [ -d "./output" ]; then
+  log "cleaning output dir"
+  rm -rf "./output"
 fi
+
+log running packer.
+templatefile=obsd-build.pkr.hcl
+packer validate "$templatefile" && \
+  packer build ${PACKER_DEBUG}  "$templatefile"
