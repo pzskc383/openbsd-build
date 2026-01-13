@@ -1,4 +1,5 @@
-#!/bin/sh -e -u
+#!/bin/sh
+set -e -u
 
 set -x
 

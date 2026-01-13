@@ -1,5 +1,4 @@
 #!/bin/sh
-
 set -e -u
 
 if [ "$#" -ne 1 ]; then

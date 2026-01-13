@@ -2,4 +2,7 @@
 /packer_httproot/*
 /ftp_mirror/*
 /vagrant-keys/*
-**/*.box
+/**/*.box
+/vagrant-tmp
+/AGENTS.md
+/CLAUDE.md

@@ -1,5 +1,4 @@
 #!/bin/sh
-
 set -e -u
 
 OPENBSD_MIRROR=${OPENBSD_MIRROR:-https://cdn.openbsd.org}
@@ -7,7 +6,7 @@ VERSION=${VERSION:-7.8}
 ARCH=${ARCH:-amd64}
 
 log() {
-    echo " * $*"
+    echo "ftp_mirror.sh: $*"
 }
 
 ensure_dir() {

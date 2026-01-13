@@ -2,9 +2,10 @@
 
 set -e -u
 
-VERSION=${VERSION:-7.8}
-ARCH=${ARCH:-amd64}
-IMG_VARIANT=${IMG_VARIANT:-full}
+VERSION=${OPENBSD_VERSION:-7.8}
+ARCH=${OPENBSD_ARCH:-amd64}
+IMG_VARIANT=${OPENBSD_IMG_VARIANT:-full}
+VERBOSE=0
 
 log() {
   echo "build-vm.sh: $*"
@@ -13,7 +14,8 @@ log() {
 usage() {
   echo "Usage: $0 [-a arch: amd64|arm64]"
   echo "[-i img variant: see below]"
-  echo "[-v openbsd version: X.Y or 'current' ]"
+  echo "[-v openbsd version: X.Y or 'current']"
+  echo "[-V : verbose]"
   echo "img variants:"
   echo "base: base*.tgz and site*.tgz"
   echo "no-x: base + comp games man"
@@ -24,8 +26,11 @@ usage() {
   exit 2
 }
 
-while getopts "v:a:i:" opt "$@"; do
+while getopts "v:a:i:V" opt "$@"; do
   case "$opt" in
+    V)
+      VERBOSE=1
+      ;;
     v)
       VERSION="${OPTARG}"
       case $VERSION in *.*|currrent) ;; *)
@@ -56,14 +61,14 @@ MIRROR_LOCAL="./ftp_mirror"
 HTTP_ROOT="./packer_httproot"
 
 log "mirroring files"
-./scripts/mirror.sh -a "${ARCH}" -v "${VERSION}" "${MIRROR_LOCAL}"
+./scripts/packer_ftp_mirror.sh -a "${ARCH}" -v "${VERSION}" "${MIRROR_LOCAL}"
 
 log "re-creating packer httproot"
 rm -rf "${HTTP_ROOT}"
 mkdir -p "${HTTP_ROOT}"
 
 log "copying install script"
-cp ./scripts/server_install.sh "${HTTP_ROOT}"/i
+cp ./scripts/start_install.sh "${HTTP_ROOT}"/i
 
 log "copying mirrored sources"
 mkdir -p "${HTTP_ROOT}/mirror/${VERSION}"
@@ -84,26 +89,38 @@ cp -Rp \
   "${MIRROR_LOCAL}/syspatch/${VERSION}/${ARCH}"/* \
   "${HTTP_ROOT}/mirror/syspatch/${VERSION}/${ARCH}/"
 
-log "fetching vagrant-keys"
+log "mirroring vagrant-keys"
 if ! [ -d "./vagrant-keys" ]; then
   mkdir "./vagrant-keys"
-  ./scripts/vagrant_keys.sh ./vagrant-keys
+  ./scripts/packer_vagrant_keys.sh ./vagrant-keys
 fi
 
+## HashiCorp Cloud upload
 # HCP_CLIENT_SECRET=$(pass vagrantcloud-sp|head -n1)
 # HCP_CLIENT_ID=$(pass vagrantcloud-sp |awk -F: '/client_id/{print $2}')
 # export HCP_CLIENT_ID HCP_CLIENT_SECRET
 
+
 export CHECKPOINT_DISABLE=1 # don't phone home
 [ -t 1 ] || { PACKER_NO_COLOR=1; export PACKER_NO_COLOR; }
 
-export PACKER_LOG=1
-export PACKER_DEBUG= #-debug
-export PACKER_LIBVIRT_STREAM_CONSOLE=1
+packer_build_cmd='packer build'
+packer_validate_cmd='packer build'
+if [ "$VERBOSE" -eq 1 ]; then
+  PACKER_LOG=1
+  PACKER_LIBVIRT_STREAM_CONSOLE=1
+  packer_build_cmd="${packer_build_cmd} -debug"
+  packer_validate_cmd="${packer_validate_cmd} -debug"
+else
+  PACKER_LOG=0
+  PACKER_LIBVIRT_STREAM_CONSOLE=0
+fi
+export PACKER_LOG PACKER_LIBVIRT_STREAM_CONSOLE
 
-export PKR_VAR_obsd_arch="${ARCH}"
-export PKR_VAR_obsd_version="${VERSION}"
-export PKR_VAR_obsd_img_variant="${IMG_VARIANT}"
+PKR_VAR_obsd_arch="${ARCH}"
+PKR_VAR_obsd_version="${VERSION}"
+PKR_VAR_obsd_img_variant="${IMG_VARIANT}"
+export PKR_VAR_obsd_arch PKR_VAR_obsd_version PKR_VAR_obsd_img_variant
 
 if [ -d "./output" ]; then
   log "cleaning output dir"
@@ -112,5 +129,6 @@ fi
 
 log running packer.
 templatefile=obsd-build.pkr.hcl
-packer validate "$templatefile" && \
-  packer build ${PACKER_DEBUG}  "$templatefile"
+
+$packer_validate_cmd "$templatefile"
+$packer_build_cmd  "$templatefile"

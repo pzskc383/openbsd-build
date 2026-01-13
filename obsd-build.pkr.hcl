@@ -8,6 +8,18 @@ packer {
       source  = "github.com/hashicorp/qemu"
       version = "~> 1"
     }
+    sshkey = {
+      version = ">= 1.1.0"
+      source  = "github.com/ivoronin/sshkey"
+    }
+    password = {
+      version = ">= 0.1.0"
+      source  = "github.com/alexp-computematrix/password"
+    }
+    external = {
+      version = "> 0.0.2"
+      source  = "github.com/joomcode/external"
+    }
   }
 }
 
@@ -15,12 +27,21 @@ variable "obsd_arch" {
   type        = string
   default     = "amd64"
   description = "Architecture (amd64|arm64)"
+
+  validation {
+    condition     = var.obsd_arch == "amd64" || var.obsd_arch == "arm64"
+    error_message = "obsd_version should be formatted as X.Y"
+  }
 }
 
 variable "obsd_version" {
   type        = string
   default     = "7.8"
   description = "OpenBSD release version"
+  validation {
+    condition     = can(regex("[0-9]+.[0-9]+", var.obsd_version))
+    error_message = "obsd_version should be formatted as X.Y"
+  }
 }
 
 variable "obsd_img_variant" {
@@ -31,19 +52,41 @@ variable "obsd_img_variant" {
 
 
 variable "disk_size_gb" {
-  type    = number
-  default = 10
+  type        = number
+  description = "Root size in GB"
+  default     = 10
 }
 
 variable "box_version" {
-  type    = string
-  default = "0.1.0"
+  type        = string
+  description = "Semantic version of this box"
+  default     = "0.1.0"
+}
+
+variable "qemu_use_uefi" {
+  type        = bool
+  description = "Whether to use UEFI for booting (implies GPT disk partitioning)"
+  default     = true
+}
+
+
+data "sshkey" "packer" {
+  name = "packer"
+  type = "ed25519"
+}
+
+data "password" "root" {
+  hash = "sha512"
+}
+
+data "password" "vagrant" {
+  hash = "sha512"
 }
 
 locals {
-  box_name = "openbsd-${var.obsd_arch}-${var.obsd_img_variant}"
+  short_version = replace(var.obsd_version, ".", "")
 
-  dir_httproot    = "${path.root}/packer_httproot"
+  dir_httproot      = "${path.root}/packer_httproot"
   dir_vagrant_keys  = "${path.root}/vagrant-keys"
   dir_installmirror = "${path.root}/packer_httproot/mirror/${var.obsd_version}/${var.obsd_arch}"
 
@@ -56,26 +99,22 @@ locals {
     cloud  = "-* bsd bsd.rd bsd.mp base* man* comp* game* xbase* xfont* xshare* xserv*"
   }
 
-  // set_names = var.obsd_img_variant == "base" ?
-  //             "-* bsd bsd.rd bsd.mp base*" :
-  //             ( var.obsd_img_variant == "no-x" ?
-  //               "-* bsd bsd.rd bsd.mp base* man* comp* game*" :
-  //               "-* bsd bsd.rd bsd.mp base* man* comp* game* xbase* xfont* xshare* xserv*" )
   set_names = local.sets_variant_map[var.obsd_img_variant]
 
-  box_tag_variant_map = {
-    base   = "openbsd-base"
-    "no-x" = "openbsd-no-x"
-    full   = "openbsd"
-    ports  = "openbsd-ports"
-    src    = "openbsd-source"
-    cloud  = "openbsd-cloud"
+  box_additional_tag_variant_map = {
+    base   = "-base"
+    "no-x" = "-no-x"
+    full   = ""
+    ports  = "-ports"
+    src    = "-source"
+    cloud  = "-cloud"
   }
 
-  // box_tag = var.obsd_img_variant == "full" ? 
-  //   "openbsd" :
-  //   ( var.obsd_img_variant == "src" ? "openbsd-source" : "openbsd-${var.obsd_img_variant}" )
-  box_tag = "pzskc383/${local.box_tag_variant_map[var.obsd_img_variant]}"
+  box_additional_tag = local.box_additional_tag_variant_map[var.obsd_img_variant]
+  box_name           = "openbsd${local.short_version}-${var.obsd_arch}${local.box_additional_tag}"
+
+  packer_bucket_name = local.box_name
+  vagrant_box_tag    = "pzskc383/${local.box_name}"
 
   disklabel_variant_map = {
     base   = "base"
@@ -89,8 +128,7 @@ locals {
   disklabel_variant = local.disklabel_variant_map[var.obsd_img_variant]
   disklabel_file    = "${path.root}/templates/disklabel.${local.disklabel_variant}.txt"
 
-  obsd_short_version = replace(var.obsd_version, ".", "")
-  obsd_cd_image      = "cd${local.obsd_short_version}.iso"
+  iso_filename = "cd${local.short_version}.iso"
 
   qemu_binary  = var.obsd_arch == "amd64" ? "qemu-system-x86_64" : "qemu-system-aarch64"
   qemu_machine = var.obsd_arch == "amd64" ? "q35" : "virt"
@@ -111,7 +149,7 @@ locals {
 
   iso_checksum_parts = [
     for l in split("\n", file("${local.dir_installmirror}/SHA256")) :
-    split(" ", l)[3] if strcontains(l, local.obsd_cd_image)
+    split(" ", l)[3] if strcontains(l, local.iso_filename)
   ]
   iso_checksum = local.iso_checksum_parts[0]
 
@@ -122,25 +160,25 @@ locals {
     -a ${var.obsd_arch} \
     --provider libvirt \
     --name ${local.box_name} \
-    ./output/${local.box_name}.box
+    ./output/vagrant/${local.box_name}.box
   EOF
 
 }
 
-source "file" "autoinstall" {
-  content = templatefile("${path.root}/templates/install.conf.tmpl", {
-    ssh_public_key   = chomp(file("${local.dir_vagrant_keys}/vagrant.pub.rsa"))
-    server_directory = "mirror/${var.obsd_version}/${var.obsd_arch}"
-    set_names        = local.set_names
-    run_x            = local.run_x
-    default_com0     = local.default_com0
-  })
-  target = "${local.dir_httproot}/install.conf"
+data "external-raw" "disklabel" {
+  program = ["./scripts/packer_external_disklabel.sh"]
+  query   = local.disklabel_file
 }
 
-source "file" "disklabel" {
-  content = file(local.disklabel_file)
-  target  = "${local.dir_httproot}/disklabel.txt"
+data "external-raw" "autoinstall" {
+  program = ["./scripts/packer_external_autoinstall.sh"]
+  query   = <<-EOF
+    ssh_public_key=${chomp(file("${local.dir_vagrant_keys}/vagrant.pub.rsa"))}
+    server_directory=mirror/${var.obsd_version}/${var.obsd_arch}
+    set_names=${local.set_names}
+    run_x=${local.run_x}
+    default_com0=${local.default_com0}
+  EOF
 }
 
 
@@ -151,100 +189,102 @@ source "qemu" "virt_machine" {
   machine_type = local.qemu_machine
   accelerator  = local.qemu_accel
 
-  efi_boot         = true
-  efi_drop_efivars = true
-
+  efi_boot          = true
+  efi_drop_efivars  = true
   efi_firmware_code = local.qemu_efi_code
   efi_firmware_vars = local.qemu_efi_vars
-  use_pflash        = true
+  use_pflash        = false
+
+  output_directory = "./output/qemu"
+  http_directory   = local.dir_httproot
+
+  iso_url      = "file://${abspath(local.dir_installmirror)}/${local.iso_filename}"
+  iso_checksum = "sha256:${local.iso_checksum}"
 
   disk_interface = "virtio"
   cpus           = 2
   memory         = "1024"
 
   disk_size        = "${var.disk_size_gb}G"
-  disk_compression = true
-  format           = "qcow2"
+  disk_compression = false
+  skip_compaction  = true
+  format           = "raw"
 
-  communicator = "ssh"
-  ssh_username = "root"
-
+  communicator         = "ssh"
+  ssh_username         = "root"
   ssh_private_key_file = "${local.dir_vagrant_keys}/vagrant.key.rsa"
+
+  headless     = true
+  vnc_port_max = 5923
+  vnc_port_min = 5923
 
   boot_command = [
     "s<enter><wait2s>",
     "ifconfig vio0 autoconf<enter><wait5s>",
-    "ftp -o i http://{{ .HTTPIP }}:{{ .HTTPPort }}/i<enter><wait3s>",
-    "sh -x i {{ .HTTPIP }}:{{ .HTTPPort }}<enter>",
+    "ftp -o i http://{{ .HTTPIP }}:{{ .HTTPPort }}/i && sh -x i {{ .HTTPIP }}:{{ .HTTPPort }}<enter>",
     "<wait2m10s>",
   ]
-
   boot_key_interval = "50ms"
   boot_wait         = "20s"
 
-  http_directory = local.dir_httproot
-
-  headless = true
-
-  vnc_port_max = 5923
-  vnc_port_min = 5923
-
-  iso_url      = "file://${abspath(local.dir_installmirror)}/${local.obsd_cd_image}"
-  iso_checksum = "sha256:${local.iso_checksum}"
-
-  output_directory = "output"
   shutdown_command = "shutdown -p now"
-
 }
 
-build {
-  name = "openbsd-boot-files"
-  sources = [
-    "source.file.disklabel",
-    "source.file.autoinstall"
-  ]
-}
+# hcp_packer_registry {
+#   bucket_name = local.packer_bucket_name
+#
+#   bucket_labels = {
+#     "os-version"  = var.obsd_version
+#     "os-arch"     = var.obsd_arch
+#     "img-variant" = var.obsd_img_variant
+#   }
+#
+#   build_labels = {
+#     "build-time"   = timestamp()
+#     "build-source" = basename(path.cwd)
+#     "box-version"  = var.box_version
+#   }
+# }
 
 build {
   name = "openbsd-box"
-  sources = [
-    "source.qemu.virt_machine",
-  ]
-  
+
+  sources = ["source.qemu.virt_machine"]
+
   provisioner "shell" {
-    name = "syspatch"
+    name   = "syspatch"
     script = "${path.root}/scripts/image_syspatch.sh"
   }
-  
+
   provisioner "shell" {
-    name = "doas"
+    name   = "doas"
     script = "${path.root}/scripts/image_setup_doas.sh"
   }
-  
+
   provisioner "shell" {
     name = "source"
     env = {
-      PACKER_SETUP_PORTS = var.obsd_img_variant == "ports" ? "1" : "0"
+      PACKER_SETUP_PORTS  = var.obsd_img_variant == "ports" ? "1" : "0"
       PACKER_SETUP_SOURCE = var.obsd_img_variant == "source" ? "1" : "0"
     }
     script = "${path.root}/scripts/image_setup_source.sh"
   }
-  
+
   provisioner "shell" {
-    name = "installurl"
+    name   = "installurl"
     script = "${path.root}/scripts/image_setup_installurl.sh"
   }
-  
+
   provisioner "shell" {
     env = {
       PACKER_SETUP_CLOUDINIT = var.obsd_img_variant == "cloud" ? "1" : "0"
     }
-    name = "cloud-init"
+    name   = "cloud-init"
     script = "${path.root}/scripts/image_setup_cloud_init.sh"
   }
 
   provisioner "shell" {
-    name = "sysprep"
+    name   = "sysprep"
     script = "${path.root}/scripts/image_sysprep.sh"
   }
 
@@ -254,9 +294,10 @@ build {
     post-processor "vagrant" {
       architecture         = var.obsd_arch
       keep_input_artifact  = true
+      compression_level    = 9
       provider_override    = "libvirt"
       vagrantfile_template = "${path.root}/templates/Vagrantfile.base.rb"
-      output               = "./output/${local.box_name}.box"
+      output               = "./output/vagrant/${local.box_name}.box"
     }
 
     // post-processor "shell-local" {
@@ -264,7 +305,7 @@ build {
     // }
 
     // post-processor "vagrant-registry" {
-    //   box_tag      = local.box_tag
+    //   box_tag      = local.vagrant_box_tag
     //   version      = var.box_version
     //   architecture = var.obsd_arch
     // }
