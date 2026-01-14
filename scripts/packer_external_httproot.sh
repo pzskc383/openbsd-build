@@ -14,7 +14,7 @@ ARCHES=""
 
 log() {
     echo "httproot: $*" >&2
-    logger -t packer-openbsd-mirror "$*"
+    # logger -t packer-openbsd-mirror "$*"
 }
 
 die() {

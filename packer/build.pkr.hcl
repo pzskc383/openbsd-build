@@ -41,9 +41,13 @@ build {
       machine_type      = source.value.qemu_machine
       accelerator       = source.value.qemu_accel
 
+      vnc_port_min = 5920 + index(keys(local.builder_variants), source.key)
+      vnc_port_max = 5920 + index(keys(local.builder_variants), source.key)
+
       output_directory = "${local.dir_output_qemu}/${source.key}"
-      iso_url          = "file://${local.httproot_meta[source.key]["iso_path"]}"
-      iso_checksum     = "sha256:${local.httproot_meta[source.key]["iso_checksum"]}"
+
+      iso_url      = "file://${local.httproot_meta[source.key]["iso_path"]}"
+      iso_checksum = "sha256:${local.httproot_meta[source.key]["iso_checksum"]}"
 
       boot_command = [
         "s<enter><wait2s>",
@@ -52,6 +56,12 @@ build {
         "<wait2m10s>",
       ]
     }
+  }
+
+
+  error-cleanup-provisioner "shell-local" {
+    name   = "cleanup"
+    inline = ["rm -rf ${local.dir_output_qemu} ${local.dir_output_vagrant}"]
   }
 
   provisioner "shell" {
@@ -108,6 +118,4 @@ build {
       output               = "${local.dir_output_vagrant}/${source.name}.box"
     }
   }
-
-
 }

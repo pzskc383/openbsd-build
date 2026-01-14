@@ -3,8 +3,8 @@ swap           256M
 /home          1G-300G   10%
 /usr           1.5G-30G  20%
 /usr/local     1G-20G    20%
+/usr/ports     1G-10G    10%
 /usr/src       2.5G
 /usr/xenocara  1.5G
-/usr/ports     1G-10G    10%
 /usr/obj       5G-15G    10%
-/var           80M-500G  30%
+/var           80M-500G  40%

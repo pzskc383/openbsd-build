@@ -60,8 +60,10 @@ locals {
 
   builder_variants = {
     for k in setproduct(keys(local.image_arches), keys(local.image_variants)) :
-    "${k[0]}.${k[1]}" => merge(local.image_arches[k[0]], local.image_variants[k[1]])
-    if(!try(k[0].disabled, false) && !try(k[1].disabled, false))
+    "${k[0]}.${k[1]}" => merge(
+      local.image_arches[k[0]],
+      local.image_variants[k[1]]
+    ) if(!try(k[0].disabled, false) && !try(k[1].disabled, false))
   }
 
   short_version  = replace(var.obsd_version, ".", "")
