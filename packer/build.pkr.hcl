@@ -33,13 +33,15 @@ build {
     labels   = ["source.qemu.openbsd"]
 
     content {
-      name              = source.key
-      vm_name           = "${local.image_basename}${source.value.suffix}"
+      name    = source.key
+      vm_name = local.image_basename
+
       efi_firmware_code = source.value.efi_code
       efi_firmware_vars = source.value.efi_vars
-      qemu_binary       = source.value.qemu_binary
-      machine_type      = source.value.qemu_machine
-      accelerator       = source.value.qemu_accel
+
+      qemu_binary  = source.value.qemu_binary
+      machine_type = source.value.qemu_machine
+      accelerator  = source.value.qemu_accel
 
       vnc_port_min = 5920 + index(keys(local.builder_variants), source.key)
       vnc_port_max = 5920 + index(keys(local.builder_variants), source.key)
@@ -59,10 +61,10 @@ build {
   }
 
 
-  error-cleanup-provisioner "shell-local" {
-    name   = "cleanup"
-    inline = ["rm -rf ${local.dir_output_qemu} ${local.dir_output_vagrant}"]
-  }
+  // error-cleanup-provisioner "shell-local" {
+  //   name   = "cleanup"
+  //   inline = ["rm -rf ${local.dir_output_qemu} ${local.dir_output_vagrant}"]
+  // }
 
   provisioner "shell" {
     name   = "syspatch"
@@ -108,14 +110,30 @@ build {
     script = "${local.dir_scripts}/image_installurl.sh"
   }
 
-
   post-processors {
-    post-processor "vagrant" {
-      keep_input_artifact  = true
-      compression_level    = 9
-      provider_override    = "libvirt"
-      vagrantfile_template = "${local.dir_templates}/Vagrantfile.base.rb"
-      output               = "${local.dir_output_vagrant}/${source.name}.box"
+    // post-processor "vagrant" {
+    //   keep_input_artifact  = true
+    //   compression_level    = 9
+    //   provider_override    = "libvirt"
+    //   vagrantfile_template = "${local.dir_templates}/Vagrantfile.base.rb"
+    //   output               = "${local.dir_output_vagrant}/${source.name}.box"
+    // }
+
+    // post-processor "manifest" {
+    //   strip_path = true
+    //   output = "${local.dir_output_qemu}/packer-manifest.json"
+    // }
+
+    post-processor "shell-local" {
+      name = "vagrant-box"
+      env = {
+        PACKER_BOX_NAME = source.name
+        PACKER_BOX_SIZE = var.disk_size_gb
+        PACKER_BOX_IMAGE = local.image_basename
+        PACKER_BOX_OUTPUT_DIR = local.dir_output_qemu
+        PACKER_BOX_TEMPLATE_DIR = local.dir_templates
+      }
+      script = "${local.dir_scripts}/packer_pp_create_box.sh"
     }
   }
 }

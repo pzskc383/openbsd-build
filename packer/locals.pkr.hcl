@@ -11,32 +11,26 @@ locals {
     base = {
       sets      = local.definitions.file_sets.base
       disklabel = "base"
-      suffix    = "-base"
     }
     nox = {
       sets      = local.definitions.file_sets.nox
       disklabel = "base"
-      suffix    = "-nox"
     }
     full = {
       sets      = local.definitions.file_sets.full
       disklabel = "base"
-      suffix    = ""
     }
     src = {
       sets      = local.definitions.file_sets.full
       disklabel = "src"
-      suffix    = "-src"
     }
     ports = {
       sets      = local.definitions.file_sets.full
       disklabel = "ports"
-      suffix    = "-ports"
     }
     cloud = {
       sets      = local.definitions.file_sets.nox
       disklabel = "cloud"
-      suffix    = "-cloud"
     }
   }
 
@@ -62,7 +56,8 @@ locals {
     for k in setproduct(keys(local.image_arches), keys(local.image_variants)) :
     "${k[0]}.${k[1]}" => merge(
       local.image_arches[k[0]],
-      local.image_variants[k[1]]
+      local.image_variants[k[1]],
+      { qemu_arch = k[1] }
     ) if(!try(k[0].disabled, false) && !try(k[1].disabled, false))
   }
 

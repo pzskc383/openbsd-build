@@ -16,3 +16,6 @@ awk '/ffs/{print $2}' < /etc/fstab |while read -r mnt; do
     dd if=/dev/zero of="${mnt}/z" bs=1M || true
     rm -f "${mnt}/z"
 done
+
+swapctl -d /dev/sd0b || true
+dd if=/dev/zero of=/dev/sd0b bs=1M || true

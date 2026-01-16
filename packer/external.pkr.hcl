@@ -11,6 +11,17 @@ data "password" "user" {
   hash = "sha512"
 }
 
+data "external-raw" "cleanup_output" {
+  program = [
+    "${local.dir_scripts}/packer_external_cleanup_output.sh",
+    local.dir_output_qemu, local.dir_output_vagrant
+  ]
+}
+
+locals {
+  dummy_input = data.external-raw.cleanup_output.result
+}
+
 data "external" "vagrant_keys" {
   program = [
     "${local.dir_scripts}/packer_external_vagrant_keys.sh",
@@ -19,7 +30,7 @@ data "external" "vagrant_keys" {
 }
 
 locals {
-  httproot_input = join("\n", concat(
+  httproot_input_vars = concat(
     [
       "config httproot ${local.dir_http}",
       "config mirror ${local.dir_mirror}",
@@ -31,10 +42,9 @@ locals {
       for tag, vars in local.builder_variants : [
         "${tag} sets ${vars.sets}",
         "${tag} disklabel ${vars.disklabel}",
-        "${tag} suffix ${vars.suffix}",
       ]
     ])
-  ))
+  )
 
   httproot_lines = compact(split("\n", data.external-raw.httproot.result))
   httproot_tags  = distinct([for line in local.httproot_lines : element(split(" ", line), 0)])
@@ -51,5 +61,5 @@ locals {
 
 data "external-raw" "httproot" {
   program = ["./scripts/packer_external_httproot.sh"]
-  query   = local.httproot_input
+  query   = "${join("\n", local.httproot_input_vars)}\n"
 }

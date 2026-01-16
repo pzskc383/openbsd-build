@@ -30,7 +30,7 @@ store_var() {
     _value="$*"
     _safetag=$(echo "$_tag" | tr '.' '_')
     
-    # log "var store: $_tag $_key $_value"
+    # log "var store: <$_tag> <$_key> <$_value>"
     
     eval "VARIANT_${_safetag}_${_key}=\"\$_value\""
 
@@ -50,7 +50,8 @@ get_var() {
     _tag="$1"
     _key="$2"
     _safetag=$(echo "$_tag" | tr '.' '_')
-    # log "var get: $_tag $_key $_value"
+
+    # log "var get: <$_tag> <$_key> <$(eval "echo \"\$VARIANT_${_safetag}_${_key}\"")>"
 
     eval "echo \"\$VARIANT_${_safetag}_${_key}\""
 }
@@ -152,6 +153,7 @@ mirror_syspatch() {
 
 
 while read -r first second rest; do
+    log "Line: $first - $second - $rest"
     [ -z "$first" ] && continue
 
     case "$first" in
@@ -211,12 +213,12 @@ mirror_link="$HTTPROOT/mirror"
 
 for tag in $TAGS; do
     arch="${tag%%.*}"
-    variant="${tag#*.}"
+    #variant="${tag#*.}"
+    # log "processing $tag: arch=$arch variant=$variant disklabel=$disklabel"
 
     sets=$(get_var "$tag" "sets")
     disklabel=$(get_var "$tag" "disklabel")
 
-    # log "processing $tag: arch=$arch variant=$variant disklabel=$disklabel"
 
     arch_dir="$MIRROR/$VERSION/$arch"
     [ -d "$arch_dir" ] || die "arch directory not found: $arch_dir"
