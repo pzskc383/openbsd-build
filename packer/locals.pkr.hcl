@@ -11,26 +11,32 @@ locals {
     base = {
       sets      = local.definitions.file_sets.base
       disklabel = "base"
+      description = "base system only"
     }
     nox = {
       sets      = local.definitions.file_sets.nox
       disklabel = "base"
+      description = "no X11 sets"
     }
     full = {
       sets      = local.definitions.file_sets.full
       disklabel = "base"
+      description = "full system install"
     }
     src = {
       sets      = local.definitions.file_sets.full
       disklabel = "src"
+      description = "full install with sourcecode"
     }
     ports = {
       sets      = local.definitions.file_sets.full
       disklabel = "ports"
+      description = "full install with sourcecode and ports"
     }
     cloud = {
       sets      = local.definitions.file_sets.nox
       disklabel = "cloud"
+      description = "cloud image"
     }
   }
 

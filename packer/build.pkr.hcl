@@ -130,6 +130,8 @@ build {
         PACKER_BOX_NAME = source.name
         PACKER_BOX_SIZE = var.disk_size_gb
         PACKER_BOX_IMAGE = local.image_basename
+        PACKER_BOX_VERSION = var.box_version
+        PACKER_BOX_DESCRIPTION = local.image_variants[split(".", source.name)[1]].description
         PACKER_BOX_OUTPUT_DIR = local.dir_output_qemu
         PACKER_BOX_TEMPLATE_DIR = local.dir_templates
       }
